@@ -1,0 +1,35 @@
+{
+  "name": "aws-ssm-run-command-action",
+  "main": "dist/index.js",
+  "type": "module",
+  "private": "true",
+  "keywords": [
+    "aws",
+    "ssm"
+  ],
+  "author": "ankurk91",
+  "license": "MIT",
+  "description": "Execute remote commands on EC2 instance using SSM",
+  "homepage": "https://github.com/ankurk91/aws-ssm-run-command-action",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node --env-file=.env ./src/index.js",
+    "prebuild": "rm -rf ./dist",
+    "build": "npm run build:main && npm run build:cancel",
+    "build:main": "ncc build ./src/index.js -o dist/main",
+    "build:cancel": "ncc build ./src/cancel.js -o dist/cancel"
+  },
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@aws-sdk/client-s3": "^3.958.0",
+    "@aws-sdk/client-ssm": "^3.901.0"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.4"
+  },
+  "engineStrict": true,
+  "packageManager": "pnpm@10.17.0",
+  "engines": {
+    "node": ">=24.11.0"
+  }
+}

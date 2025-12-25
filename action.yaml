@@ -1,0 +1,38 @@
+name: AWS SSM Run Remote Command
+description: Execute remote commands on EC2 instance using SSM
+branding:
+  icon: server
+  color: green
+
+inputs:
+  ec2_instance_id:
+    description: EC2 instance ID
+    required: true
+  run_as_user:
+    description: Linux user name
+    required: true
+  commands:
+    description: Commands to run on server
+    required: true
+  log_bucket_name:
+    description: S3 bucket name
+    required: true
+  s3_prefix:
+    description: S3 bucket prefix
+    default: deployments
+  comment:
+    description: Comment
+    default: 'GitHub Actions'
+  execution_timeout:
+    description: Script is forcibly terminated after this number of seconds
+    default: '3600'
+
+outputs:
+  command-exit-code:
+    description: Command exit code
+
+runs:
+  using: node24
+  main: 'dist/main/index.js'
+  post-if: 'cancelled()'
+  post: 'dist/cancel/index.js'

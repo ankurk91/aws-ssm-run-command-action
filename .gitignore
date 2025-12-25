@@ -1,0 +1,42 @@
+# IDE
+.idea/
+.vscode/
+.cursor/
+
+# logs and cache
+*.log
+npm-debug.log*
+.cache
+
+# OS generated files
+[Tt]humbs.db
+ehthumbs.db
+*~
+.*~
+._*
+*.bak
+*.save
+*.swp
+
+# Recycle bin folder used by different OS
+.Trash-*
+$RECYCLE.BIN/
+
+# Windows shortcuts
+*.lnk
+
+# Folder config file
+[Dd]esktop.ini
+*.DS_Store
+.DS_Store?
+
+# node packages
+node_modules/
+
+# Security tokens
+.env
+*.pem
+*.pub
+*.crt
+*.key
+
