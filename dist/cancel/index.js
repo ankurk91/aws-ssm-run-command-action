@@ -55649,7 +55649,7 @@ var __webpack_exports__ = {};
 const ssm = new _aws_sdk_client_ssm__WEBPACK_IMPORTED_MODULE_1__/* .SSMClient */ .jBj()
 
 async function run() {
-  const COMMAND_ID = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getState('command-id');
+  const COMMAND_ID = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getState('ssm-command-id');
 
   if (COMMAND_ID) {
     const EC2_INSTANCE_ID = _actions_core__WEBPACK_IMPORTED_MODULE_0__.getInput('ec2_instance_id', {required: true})
