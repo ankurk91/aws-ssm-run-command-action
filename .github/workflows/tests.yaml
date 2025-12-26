@@ -45,5 +45,6 @@ jobs:
             pwd
             cd /home/ubuntu
             ls -al
+            sleep 10s
             echo "Hello from EC2"
 

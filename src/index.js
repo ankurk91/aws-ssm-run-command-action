@@ -38,6 +38,7 @@ async function run() {
   const S3_PREFIX = core.getInput('s3_prefix')
   const COMMENT = core.getInput('comment')
   const EXECUTION_TIMEOUT = String(core.getInput('execution_timeout'))
+  const POLL_INTERVAL_MS = parseInt(core.getInput('poll_interval_ms'))
 
   const SCRIPT = `
 set -e
@@ -61,18 +62,19 @@ INNER
   }))
 
   const COMMAND_ID = sendResp.Command.CommandId
-  core.saveState('command-id', COMMAND_ID);
+  core.saveState('ssm-command-id', COMMAND_ID);
   core.info(`Command ID: ${COMMAND_ID}`)
   core.info('Waiting for command to finish...')
 
   let STATUS = 'Pending'
-  while (STATUS === 'Pending' || STATUS === 'InProgress') {
-    await sleep(2000)
+  while (['Pending', 'InProgress', 'Delayed'].includes(STATUS)) {
+    await sleep(POLL_INTERVAL_MS)
     const resp = await ssm.send(new ListCommandInvocationsCommand({
       CommandId: COMMAND_ID,
       Details: true
     }))
     STATUS = resp.CommandInvocations[0]?.Status ?? 'Unknown'
+    core.info(`Command status: ${STATUS}`)
   }
 
   const base = `${S3_PREFIX}/${COMMAND_ID}/${EC2_INSTANCE_ID}/awsrunShellScript/0.awsrunShellScript`

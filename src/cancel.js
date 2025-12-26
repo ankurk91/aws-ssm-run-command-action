@@ -4,7 +4,7 @@ import * as core from "@actions/core";
 const ssm = new SSMClient()
 
 async function run() {
-  const COMMAND_ID = core.getState('command-id');
+  const COMMAND_ID = core.getState('ssm-command-id');
 
   if (COMMAND_ID) {
     const EC2_INSTANCE_ID = core.getInput('ec2_instance_id', {required: true})

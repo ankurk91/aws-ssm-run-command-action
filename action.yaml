@@ -12,7 +12,7 @@ inputs:
     description: Linux user name
     required: true
   commands:
-    description: Commands to run on server
+    description: Multiline commands to run on server
     required: true
   log_bucket_name:
     description: S3 bucket name
@@ -26,6 +26,9 @@ inputs:
   execution_timeout:
     description: Script is forcibly terminated after this number of seconds
     default: '3600'
+  poll_interval_ms:
+    description: Milliseconds to poll command results
+    default: '2000'
 
 outputs:
   command-exit-code:

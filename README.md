@@ -75,15 +75,16 @@ jobs:
 
 ### Inputs
 
-| Name                | Required | Default          | Description                                                |
-|---------------------|----------|------------------|------------------------------------------------------------|
-| `ec2_instance_id`   | Yes      | `null`           | EC2 Instance ID                                            |
-| `run_as_user`       | Yes      | `null`           | A valid Linux user name on remote EC2                      |
-| `log_bucket_name`   | Yes      | `null`           | S3 Bucket name to store command output logs                |
-| `commands`          | Yes      | `null`           | Commands to run on server                                  |
-| `comment`           | No       | `GitHub actions` | User-specified information about the command               |
-| `s3_prefix`         | No       | `deployments`    | S3 bucket prefix                                           |
-| `execution_timeout` | No       | `3600`           | Script is forcibly terminated after this number of seconds |
+| Name                | Required | Default            | Description                                                |
+|---------------------|----------|--------------------|------------------------------------------------------------|
+| `ec2_instance_id`   | Yes      | `null`             | EC2 Instance ID                                            |
+| `run_as_user`       | Yes      | `null`             | A valid Linux user name on remote EC2                      |
+| `log_bucket_name`   | Yes      | `null`             | S3 Bucket name to store command output logs                |
+| `commands`          | Yes      | `null`             | Multiline commands to run on server                        |
+| `comment`           | No       | `GitHub actions`   | User-specified information about the command               |
+| `s3_prefix`         | No       | `deployments`      | S3 bucket prefix                                           |
+| `execution_timeout` | No       | `3600` (1 hour)    | Script is forcibly terminated after this number of seconds |
+| `poll_interval_ms`  | No       | `2000` (2 seconds) | Milliseconds to poll command results                       |
 
 ### Outputs
 
