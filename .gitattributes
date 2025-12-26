@@ -1,0 +1,25 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Don't diff or textually merge source maps
+*.map   binary
+
+# Avoid unreadable diffs for generated text files, eg: *.min.js
+*.min.* binary
+
+# Image files
+*.jpg binary
+*.jpeg binary
+*.png binary
+*.ico binary
+
+# Export ignores
+tests export-ignore
+__test__ export-ignore
+.github export-ignore
+
+# Do not show diffs for built artifacts
+dist/** -diff
+
+# Exclude built artifacts from language statistics
+dist/** linguist-vendored

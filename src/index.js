@@ -22,9 +22,12 @@ const streamToString = async stream =>
 
 async function fetchS3(bucket, key) {
   try {
-    const res = await s3.send(new GetObjectCommand({Bucket: bucket, Key: key}))
+    const res = await s3.send(new GetObjectCommand({
+      Bucket: bucket,
+      Key: key
+    }))
     return await streamToString(res.Body)
-  } catch {
+  } catch (error) {
     core.debug(`Unable to fetch from s3://${bucket}/${key}`)
     return null
   }
@@ -101,7 +104,7 @@ INNER
   core.info(`Exit code: ${EXIT_CODE}`)
 
   if (String(EXIT_CODE) !== '0') {
-    core.error(`Remote command failed with exit code ${EXIT_CODE}`)
+    core.error(`Remote command failed with exit code: ${EXIT_CODE}`)
     process.exit(EXIT_CODE)
   }
 }
