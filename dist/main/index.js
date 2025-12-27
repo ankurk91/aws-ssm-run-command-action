@@ -65900,7 +65900,10 @@ var dist_cjs = __nccwpck_require__(9784);
 var client_s3_dist_cjs = __nccwpck_require__(341);
 ;// CONCATENATED MODULE: external "node:process"
 const external_node_process_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:process");
+;// CONCATENATED MODULE: external "stream/consumers"
+const consumers_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("stream/consumers");
 ;// CONCATENATED MODULE: ./src/index.js
+
 
 
 
@@ -65911,13 +65914,9 @@ const s3 = new client_s3_dist_cjs/* S3Client */.YxF()
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
-const streamToString = async stream =>
-  await new Promise((resolve, reject) => {
-    const chunks = []
-    stream.on('data', c => chunks.push(c))
-    stream.on('error', reject)
-    stream.on('end', () => resolve(Buffer.concat(chunks).toString()))
-  })
+async function streamToString(stream) {
+  return await (0,consumers_namespaceObject.text)(stream);
+}
 
 async function fetchS3(bucket, key) {
   try {
