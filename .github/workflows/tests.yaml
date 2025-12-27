@@ -45,6 +45,7 @@ jobs:
             pwd
             cd /home/ubuntu
             ls -al
-            sleep 10s
+            sleep 4s
+            echo -e '\033[32mColorful text\033[0m'
             echo "Hello from EC2"
 

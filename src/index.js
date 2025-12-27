@@ -6,19 +6,16 @@ import {
 } from '@aws-sdk/client-ssm'
 import {S3Client, GetObjectCommand} from '@aws-sdk/client-s3'
 import process from 'node:process';
+import { text } from 'stream/consumers';
 
 const ssm = new SSMClient()
 const s3 = new S3Client()
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
-const streamToString = async stream =>
-  await new Promise((resolve, reject) => {
-    const chunks = []
-    stream.on('data', c => chunks.push(c))
-    stream.on('error', reject)
-    stream.on('end', () => resolve(Buffer.concat(chunks).toString()))
-  })
+async function streamToString(stream) {
+  return await text(stream);
+}
 
 async function fetchS3(bucket, key) {
   try {

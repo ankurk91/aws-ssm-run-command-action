@@ -1,6 +1,6 @@
 # AWS SSM Run Command Action
 
-A GitHub Action to execute remote shell commands on EC2 instances.
+A GitHub Action to execute remote shell commands on EC2 instances via SSM.
 
 ### Features
 
@@ -100,7 +100,7 @@ to determine AWS credentials and region.
 Use the [aws-actions/configure-aws-credentials](https://github.com/aws-actions/configure-aws-credentials) action to
 configure the GitHub Actions environment with environment variables containing AWS credentials and your desired region.
 
-### Permissions
+### Action Permissions
 
 This action requires the following set of permissions inside pipeline:
 
@@ -135,10 +135,6 @@ This action requires the following set of permissions inside pipeline:
 * [AWS SSM Errors](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/client/ssm/command/SendCommandCommand/#Throws)
 * [What is SSM Run Command](https://docs.aws.amazon.com/systems-manager/latest/userguide/run-command.html)
 * [SSM agent installation](https://docs.aws.amazon.com/systems-manager/latest/userguide/manually-install-ssm-agent-linux.html)
-
-### Attribution
-
-Highly inspired by [this](https://github.com/Castlenine/aws-ssm-command) repo
 
 ### License
 
