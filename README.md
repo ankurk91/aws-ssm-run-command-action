@@ -4,10 +4,14 @@ A GitHub Action to execute remote shell commands on EC2 instances via SSM.
 
 ### Features
 
-* Stores command output in an S3 bucket to avoid the ~24,000‑character log limit — note: this prevents real‑time
-  streaming of command output.
+* Stores command output in an S3 bucket to avoid the ~24 KB log limit
 * Works with public or private EC2 instances.
 * No need to open or whitelist port 22. :rocket:
+
+### Caveats
+
+* Supports Linux instances only for now
+* No realtime streaming of command output
 
 ### Prepare your AWS environment
 
@@ -134,7 +138,7 @@ This action requires the following set of permissions inside pipeline:
 
 * [AWS SSM Errors](https://docs.aws.amazon.com/AWSJavaScriptSDK/v3/latest/client/ssm/command/SendCommandCommand/#Throws)
 * [What is SSM Run Command](https://docs.aws.amazon.com/systems-manager/latest/userguide/run-command.html)
-* [SSM agent installation](https://docs.aws.amazon.com/systems-manager/latest/userguide/manually-install-ssm-agent-linux.html)
+* [SSM Agent installation](https://docs.aws.amazon.com/systems-manager/latest/userguide/manually-install-ssm-agent-linux.html)
 
 ### License
 
