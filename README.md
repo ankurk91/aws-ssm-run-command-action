@@ -1,10 +1,12 @@
 # AWS SSM Run Command Action
 
+[![tests](https://github.com/ankurk91/aws-ssm-run-command-action/actions/workflows/tests.yaml/badge.svg)](https://github.com/ankurk91/aws-ssm-run-command-action/actions)
+
 A GitHub Action to execute remote shell commands on EC2 instances via SSM.
 
 ### Features
 
-* Stores command output in an S3 bucket to avoid the ~24 KB log limit
+* Stores command output in a S3 bucket to avoid the ~24 KB log limit
 * Works with public or private EC2 instances.
 * No need to open or whitelist port 22. :rocket:
 

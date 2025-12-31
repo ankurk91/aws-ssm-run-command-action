@@ -10,10 +10,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version-file: '.nvmrc'
           package-manager-cache: false
@@ -36,6 +36,7 @@ jobs:
 
       - name: Execute this action
         uses: ./
+        id: ssm-run
         with:
           ec2_instance_id: ${{ vars.EC2_INSTANCE_ID }}
           run_as_user: ubuntu
@@ -49,3 +50,8 @@ jobs:
             echo -e '\033[32mColorful text\033[0m'
             echo "Hello from EC2"
 
+      - name: Assert command exit code is 0
+        uses: nick-fields/assert-action@v2
+        with:
+          expected: 0
+          actual: ${{ steps.ssm-run.outputs.command-exit-code }}

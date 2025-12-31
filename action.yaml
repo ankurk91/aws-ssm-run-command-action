@@ -6,16 +6,16 @@ branding:
 
 inputs:
   ec2_instance_id:
-    description: EC2 instance ID
+    description: Target EC2 instance ID
     required: true
   run_as_user:
-    description: Linux user name
+    description: A valid Linux user name on EC2
     required: true
   commands:
     description: Multiline commands to run on server
     required: true
   log_bucket_name:
-    description: S3 bucket name
+    description: S3 bucket name to store logs
     required: true
   s3_prefix:
     description: S3 bucket prefix
@@ -27,7 +27,7 @@ inputs:
     description: Script is forcibly terminated after this number of seconds
     default: '3600'
   poll_interval_ms:
-    description: Milliseconds to poll command results
+    description: Milliseconds to poll command status
     default: '2000'
 
 outputs:
