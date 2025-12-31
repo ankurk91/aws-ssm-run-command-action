@@ -1,0 +1,53 @@
+name: localstack
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: '0 0 18 * *'
+
+jobs:
+  localstack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      localstack:
+        image: localstack/localstack:4.12
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: ec2,s3,ssm,iam,sts
+          DEBUG: 0
+        options: >-
+          --health-cmd="curl -f http://localhost:4566/_localstack/health || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          package-manager-cache: false
+
+      - name: Install pnpm
+        run: npm install -g pnpm@^10
+
+      - name: Install npm deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build action
+        run: pnpm run build
+
+      - name: Test the action
+        run: bash ./localstack.sh

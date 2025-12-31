@@ -1,0 +1,25 @@
+services:
+  localstack:
+    image: localstack/localstack:4.12
+    container_name: localstack
+    restart: no
+    ports:
+      - "127.0.0.1:4566:4566"
+      - "127.0.0.1:4510-4559:4510-4559"
+    environment:
+      SERVICES: ec2,s3,ssm,iam,sts
+      DEBUG: ${LOCALSTACK_DEBUG:-0}
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "localstack_data:/var/lib/localstack"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:4566/_localstack/health || exit 1" ]
+    networks:
+      - localstack_network
+
+volumes:
+  localstack_data:
+
+networks:
+  localstack_network:
+    driver: bridge
