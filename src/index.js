@@ -2,7 +2,7 @@ import * as core from '@actions/core'
 import {
   SSMClient,
   SendCommandCommand,
-  ListCommandInvocationsCommand
+  GetCommandInvocationCommand
 } from '@aws-sdk/client-ssm'
 import {S3Client, GetObjectCommand} from '@aws-sdk/client-s3'
 import process from 'node:process';
@@ -67,13 +67,16 @@ INNER
   core.info('Waiting for command to finish...')
 
   let STATUS = 'Pending'
+  let EXIT_CODE = 255;
   while (['Pending', 'InProgress', 'Delayed'].includes(STATUS)) {
     await sleep(POLL_INTERVAL_MS)
-    const resp = await ssm.send(new ListCommandInvocationsCommand({
+    const resp = await ssm.send(new GetCommandInvocationCommand({
       CommandId: COMMAND_ID,
-      Details: true
+      InstanceId: EC2_INSTANCE_ID,
+      PluginName: 'aws:runShellScript'
     }))
-    STATUS = resp.CommandInvocations[0]?.Status ?? 'Unknown'
+    STATUS = resp.Status ?? 'Unknown'
+    EXIT_CODE = resp.ResponseCode ?? 255
     core.info(`Command status: ${STATUS}`)
   }
 
@@ -89,15 +92,7 @@ INNER
   stderr && core.warning(stderr)
   core.endGroup()
 
-  const exitResp = await ssm.send(new ListCommandInvocationsCommand({
-    CommandId: COMMAND_ID,
-    Details: true
-  }))
-
-  const EXIT_CODE =
-    exitResp.CommandInvocations[0]?.CommandPlugins[0]?.ResponseCode ?? 255
   core.setOutput('command-exit-code', EXIT_CODE);
-
   core.info(`Exit code: ${EXIT_CODE}`)
 
   if (String(EXIT_CODE) !== '0') {
