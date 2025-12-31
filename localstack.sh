@@ -7,6 +7,7 @@ export AWS_PAGER=""
 export AWS_ACCESS_KEY_ID=test_id
 export AWS_SECRET_ACCESS_KEY=test_key
 export AWS_DEFAULT_REGION=ap-south-1
+export AWS_REGION=ap-south-1
 export AWS_ENDPOINT_URL=http://localhost:4566
 S3_BUCKET_NAME=ssm-deployment-logs
 
