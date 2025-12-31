@@ -21686,7 +21686,7 @@ __webpack_unused_export__ = GetCalendarStateCommand;
 __webpack_unused_export__ = GetCalendarStateRequest$;
 __webpack_unused_export__ = GetCalendarStateResponse$;
 __webpack_unused_export__ = GetCommandInvocation$;
-__webpack_unused_export__ = GetCommandInvocationCommand;
+exports.ryN = GetCommandInvocationCommand;
 __webpack_unused_export__ = GetCommandInvocationRequest$;
 __webpack_unused_export__ = GetCommandInvocationResult$;
 __webpack_unused_export__ = GetConnectionStatus$;
@@ -21946,7 +21946,7 @@ __webpack_unused_export__ = ListAssociationsCommand;
 __webpack_unused_export__ = ListAssociationsRequest$;
 __webpack_unused_export__ = ListAssociationsResult$;
 __webpack_unused_export__ = ListCommandInvocations$;
-exports.mdT = ListCommandInvocationsCommand;
+__webpack_unused_export__ = ListCommandInvocationsCommand;
 __webpack_unused_export__ = ListCommandInvocationsRequest$;
 __webpack_unused_export__ = ListCommandInvocationsResult$;
 __webpack_unused_export__ = ListCommands$;
@@ -65968,13 +65968,16 @@ INNER
   core.info('Waiting for command to finish...')
 
   let STATUS = 'Pending'
+  let EXIT_CODE = 255;
   while (['Pending', 'InProgress', 'Delayed'].includes(STATUS)) {
     await sleep(POLL_INTERVAL_MS)
-    const resp = await ssm.send(new dist_cjs/* ListCommandInvocationsCommand */.mdT({
+    const resp = await ssm.send(new dist_cjs/* GetCommandInvocationCommand */.ryN({
       CommandId: COMMAND_ID,
-      Details: true
+      InstanceId: EC2_INSTANCE_ID,
+      PluginName: 'aws:runShellScript'
     }))
-    STATUS = resp.CommandInvocations[0]?.Status ?? 'Unknown'
+    STATUS = resp.Status ?? 'Unknown'
+    EXIT_CODE = resp.ResponseCode ?? 255
     core.info(`Command status: ${STATUS}`)
   }
 
@@ -65990,15 +65993,7 @@ INNER
   stderr && core.warning(stderr)
   core.endGroup()
 
-  const exitResp = await ssm.send(new dist_cjs/* ListCommandInvocationsCommand */.mdT({
-    CommandId: COMMAND_ID,
-    Details: true
-  }))
-
-  const EXIT_CODE =
-    exitResp.CommandInvocations[0]?.CommandPlugins[0]?.ResponseCode ?? 255
   core.setOutput('command-exit-code', EXIT_CODE);
-
   core.info(`Exit code: ${EXIT_CODE}`)
 
   if (String(EXIT_CODE) !== '0') {
