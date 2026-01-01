@@ -1,6 +1,7 @@
 # AWS SSM Run Command Action
 
 [![tests](https://github.com/ankurk91/aws-ssm-run-command-action/actions/workflows/tests.yaml/badge.svg)](https://github.com/ankurk91/aws-ssm-run-command-action/actions)
+[![localstack](https://github.com/ankurk91/aws-ssm-run-command-action/actions/workflows/localstack.yaml/badge.svg)](https://github.com/ankurk91/aws-ssm-run-command-action/actions)
 
 A GitHub Action to execute remote shell commands on EC2 instances via SSM.
 
@@ -101,7 +102,7 @@ jobs:
 ### Credentials and Region
 
 This action relies on the default behavior of the
-[AWS SDK for Javascript](https://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/setting-credentials-node.html)
+[AWS SDK for Javascript](https://docs.aws.amazon.com//sdk-for-javascript/v3/developer-guide/setting-credentials-node.html)
 to determine AWS credentials and region.
 Use the [aws-actions/configure-aws-credentials](https://github.com/aws-actions/configure-aws-credentials) action to
 configure the GitHub Actions environment with environment variables containing AWS credentials and your desired region.
