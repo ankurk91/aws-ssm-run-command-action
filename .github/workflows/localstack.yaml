@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 5
     services:
       localstack:
-        image: localstack/localstack:4.12
+        image: localstack/localstack:4.14
         ports:
           - 4566:4566
         env:
@@ -41,7 +41,7 @@ jobs:
           package-manager-cache: false
 
       - name: Install pnpm
-        run: npm install -g pnpm@^10
+        run: npm install -g pnpm@^11
 
       - name: Install npm deps
         run: pnpm install --frozen-lockfile
