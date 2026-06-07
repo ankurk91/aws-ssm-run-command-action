@@ -68355,12 +68355,9 @@ function getIDToken(aud) {
 var dist_cjs = __nccwpck_require__(6035);
 // EXTERNAL MODULE: ./node_modules/.pnpm/@aws-sdk+client-s3@3.1053.0/node_modules/@aws-sdk/client-s3/dist-cjs/index.js
 var client_s3_dist_cjs = __nccwpck_require__(8901);
-// EXTERNAL MODULE: external "node:process"
-var external_node_process_ = __nccwpck_require__(1708);
-;// CONCATENATED MODULE: external "stream/consumers"
-const consumers_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("stream/consumers");
+;// CONCATENATED MODULE: external "node:stream/consumers"
+const consumers_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:stream/consumers");
 ;// CONCATENATED MODULE: ./src/index.js
-
 
 
 
@@ -68383,7 +68380,12 @@ async function fetchS3(bucket, key) {
     }))
     return await streamToString(res.Body)
   } catch (error) {
-    core_debug(`Unable to fetch from s3://${bucket}/${key}`)
+    const statusCode = error?.$metadata?.httpStatusCode
+    if (error?.name === 'AccessDenied' || statusCode === 403) {
+      throw new Error(`Access denied reading s3://${bucket}/${key}. Check the EC2 instance and pipeline IAM permissions on the log bucket.`)
+    }
+    // NoSuchKey / missing object is expected (e.g. no stderr produced)
+    core_debug(`Unable to fetch from s3://${bucket}/${key}: ${error?.name ?? error}`)
     return null
   }
 }
@@ -68391,13 +68393,20 @@ async function fetchS3(bucket, key) {
 async function run() {
   const EC2_INSTANCE_ID = getInput('ec2_instance_id', {required: true})
   const RUN_AS_USER = getInput('run_as_user', {required: true})
+
+  if (!/^[A-Za-z0-9_-]+$/.test(RUN_AS_USER)) {
+    throw new Error(`Invalid run_as_user "${RUN_AS_USER}". Only letters, digits, underscores and hyphens are allowed.`)
+  }
+
   const COMMANDS = getInput('commands', {required: true})
   const LOG_BUCKET_NAME = getInput('log_bucket_name', {required: true})
-  const S3_PREFIX = getInput('s3_prefix')
+  const S3_PREFIX = getInput('s3_prefix') || 'deployments'
   const COMMENT = getInput('comment')
-  const EXECUTION_TIMEOUT = String(getInput('execution_timeout'))
+  const EXECUTION_TIMEOUT = getInput('execution_timeout')
   const POLL_INTERVAL_MS = parseInt(getInput('poll_interval_ms'))
 
+  // `exec 2>&1` merges stderr into stdout so interleaved output stays in
+  // chronological order; on separate streams the lines can arrive out of sequence.
   const SCRIPT = `
 set -e
 sudo -u ${RUN_AS_USER} bash <<'INNER'
@@ -68454,8 +68463,7 @@ INNER
   info(`Exit code: ${EXIT_CODE}`)
 
   if (String(EXIT_CODE) !== '0') {
-    error(`Remote command failed with exit code: ${EXIT_CODE}`)
-    external_node_process_.exit(EXIT_CODE)
+    setFailed(`Remote command failed with exit code: ${EXIT_CODE}`)
   }
 }
 
