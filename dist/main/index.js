@@ -68357,14 +68357,22 @@ var dist_cjs = __nccwpck_require__(6035);
 var client_s3_dist_cjs = __nccwpck_require__(8901);
 ;// CONCATENATED MODULE: external "node:stream/consumers"
 const consumers_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:stream/consumers");
+// EXTERNAL MODULE: external "node:process"
+var external_node_process_ = __nccwpck_require__(1708);
 ;// CONCATENATED MODULE: ./src/index.js
 
 
 
 
 
+
 const ssm = new dist_cjs.SSMClient()
-const s3 = new client_s3_dist_cjs.S3Client()
+// LocalStack only resolves path-style S3 URLs; virtual-hosted-style requests
+// (bucket.localhost) fail with NoSuchBucket. Enable path-style only when a
+// custom endpoint is set so real AWS keeps using the default addressing.
+const s3 = new client_s3_dist_cjs.S3Client({
+  forcePathStyle: Boolean(external_node_process_.env.AWS_ENDPOINT_URL)
+})
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
@@ -68402,8 +68410,8 @@ async function run() {
   const LOG_BUCKET_NAME = getInput('log_bucket_name', {required: true})
   const S3_PREFIX = getInput('s3_prefix') || 'deployments'
   const COMMENT = getInput('comment')
-  const EXECUTION_TIMEOUT = getInput('execution_timeout')
-  const POLL_INTERVAL_MS = parseInt(getInput('poll_interval_ms'))
+  const EXECUTION_TIMEOUT = getInput('execution_timeout') || '3600'
+  const POLL_INTERVAL_MS = parseInt(getInput('poll_interval_ms'), 10) || 2000
 
   // `exec 2>&1` merges stderr into stdout so interleaved output stays in
   // chronological order; on separate streams the lines can arrive out of sequence.
