@@ -1,6 +1,5 @@
 # AWS SSM Run Command Action
 
-[![tests](https://github.com/ankurk91/aws-ssm-run-command-action/actions/workflows/tests.yaml/badge.svg)](https://github.com/ankurk91/aws-ssm-run-command-action/actions)
 [![localstack](https://github.com/ankurk91/aws-ssm-run-command-action/actions/workflows/localstack.yaml/badge.svg)](https://github.com/ankurk91/aws-ssm-run-command-action/actions)
 
 A GitHub Action to execute remote shell commands on EC2 instances via SSM.

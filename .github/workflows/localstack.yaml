@@ -1,4 +1,4 @@
-name: localstack
+name: localstack-test
 
 on:
   workflow_dispatch:
@@ -12,10 +12,15 @@ on:
   schedule:
     - cron: '0 0 18 * *'
 
+permissions:
+  contents: read
+
+
 jobs:
   localstack:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+
     services:
       localstack:
         image: localstack/localstack:4.14
@@ -33,6 +38,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - name: Setup node.js
         uses: actions/setup-node@v6
