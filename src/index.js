@@ -99,15 +99,11 @@ INNER
 
   const base = `${S3_PREFIX}/${COMMAND_ID}/${EC2_INSTANCE_ID}/awsrunShellScript/0.awsrunShellScript`
 
-  core.startGroup('Remote stdout')
   const stdout = await fetchS3(LOG_BUCKET_NAME, `${base}/stdout`)
   stdout ? core.info(stdout) : core.warning('No stdout found')
-  core.endGroup()
 
-  core.startGroup('Remote stderr')
   const stderr = await fetchS3(LOG_BUCKET_NAME, `${base}/stderr`)
   stderr && core.warning(stderr)
-  core.endGroup()
 
   core.setOutput('command-exit-code', EXIT_CODE);
   core.info(`Exit code: ${EXIT_CODE}`)
