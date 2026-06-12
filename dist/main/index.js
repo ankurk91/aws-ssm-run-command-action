@@ -68274,13 +68274,13 @@ function info(message) {
  * @param name The name of the output group
  */
 function startGroup(name) {
-    command_issue('group', name);
+    issue('group', name);
 }
 /**
  * End an output group.
  */
 function endGroup() {
-    command_issue('endgroup');
+    issue('endgroup');
 }
 /**
  * Wrap an asynchronous function call in a group.
@@ -68457,15 +68457,11 @@ INNER
 
   const base = `${S3_PREFIX}/${COMMAND_ID}/${EC2_INSTANCE_ID}/awsrunShellScript/0.awsrunShellScript`
 
-  startGroup('Remote stdout')
   const stdout = await fetchS3(LOG_BUCKET_NAME, `${base}/stdout`)
   stdout ? info(stdout) : warning('No stdout found')
-  endGroup()
 
-  startGroup('Remote stderr')
   const stderr = await fetchS3(LOG_BUCKET_NAME, `${base}/stderr`)
   stderr && warning(stderr)
-  endGroup()
 
   setOutput('command-exit-code', EXIT_CODE);
   info(`Exit code: ${EXIT_CODE}`)
