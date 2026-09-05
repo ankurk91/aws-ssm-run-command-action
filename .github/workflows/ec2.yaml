@@ -14,27 +14,22 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - name: Setup node.js
-        uses: actions/setup-node@v6
+      - name: Setup pnpm and node.js
+        uses: pnpm/setup@v2
         with:
-          node-version-file: '.nvmrc'
-          package-manager-cache: false
-
-      - name: Install pnpm
-        run: npm install -g pnpm@^11
-
-      - name: Install npm deps
-        run: pnpm install --frozen-lockfile
+          runtime: node@24
+          cache: true
+          require-lockfile: true
 
       - name: Build action
         run: npm run build
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -57,7 +52,7 @@ jobs:
             echo "Hello from EC2"
 
       - name: Assert command exit code is 0
-        uses: nick-fields/assert-action@v2
+        uses: nick-fields/assert-action@v4
         with:
           expected: 0
           actual: ${{ steps.ssm-run.outputs.command-exit-code }}

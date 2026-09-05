@@ -1,5 +1,9 @@
 # AWS SSM Run Command Action
 
+<p align="center">
+  <img src=".github/banner.jpg" alt="AWS SSM Run Command Action" width="100%">
+</p>
+
 [![localstack](https://github.com/ankurk91/aws-ssm-run-command-action/actions/workflows/localstack.yaml/badge.svg)](https://github.com/ankurk91/aws-ssm-run-command-action/actions)
 
 A GitHub Action to execute remote shell commands on EC2 instances via SSM.
@@ -102,8 +106,8 @@ jobs:
 
 This action relies on the default behavior of the
 [AWS SDK for Javascript](https://docs.aws.amazon.com//sdk-for-javascript/v3/developer-guide/setting-credentials-node.html)
-to determine AWS credentials and region.
-Use the [aws-actions/configure-aws-credentials](https://github.com/aws-actions/configure-aws-credentials) action to
+to determine AWS credentials and region. Use
+the [aws-actions/configure-aws-credentials](https://github.com/aws-actions/configure-aws-credentials) action to
 configure the GitHub Actions environment with environment variables containing AWS credentials and your desired region.
 
 ### Action Permissions
@@ -144,4 +148,4 @@ This action requires the following set of permissions inside pipeline:
 
 ### License
 
-This repo is licensed under MIT [License](LICENSE.txt).
+MIT [License](LICENSE.txt).
