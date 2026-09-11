@@ -131,14 +131,33 @@ This action requires the following set of permissions inside pipeline:
     {
       "Effect": "Allow",
       "Action": [
-        "ssm:ListCommandInvocations",
-        "ssm:GetCommandInvocation"
+        "ssm:GetCommandInvocation",
+        "ssm:CancelCommand"
       ],
       "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::project-name-ssm-deployment-logs/*"
     }
   ]
 }
 ```
+
+Notes:
+
+* `s3:GetObject` on the log bucket is mandatory. The action reads the command output from S3 on the runner, so
+  without it every run fails with an access denied error instead of printing logs.
+* `ssm:CancelCommand` is used by the post step to stop the remote command when the workflow is cancelled. Without it,
+  the cancellation is only logged as a warning and the remote script keeps running on the instance until it finishes
+  or hits `execution_timeout`.
+* The `arn:aws:ec2:*:*:instance/*` resource above is the permissive default. It lets any workflow holding these
+  credentials run arbitrary commands as root on **every** instance in the account. Narrowing it is strongly
+  recommended, either to the exact instance ARNs you deploy to, or via an `ssm:resourceTag/*` condition if the
+  instance IDs change over time.
 
 ### Reference links
 
