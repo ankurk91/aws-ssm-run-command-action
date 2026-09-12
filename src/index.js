@@ -84,7 +84,10 @@ INNER
   core.info('Waiting for command to finish...')
 
   let STATUS = 'Pending'
-  let EXIT_CODE = 255;
+  let STATUS_DETAILS = ''
+  // Null until the script itself runs to completion. Undeliverable, TimedOut, Terminated
+  // and Cancelled all leave it null, so it must not be flattened into a number too early.
+  let RESPONSE_CODE = null
   while (['Pending', 'InProgress', 'Delayed'].includes(STATUS)) {
     await sleep(POLL_INTERVAL_MS)
     const resp = await ssm.send(new GetCommandInvocationCommand({
@@ -93,9 +96,13 @@ INNER
       PluginName: 'aws:runShellScript'
     }))
     STATUS = resp.Status ?? 'Unknown'
-    EXIT_CODE = resp.ResponseCode ?? 255
+    STATUS_DETAILS = resp.StatusDetails ?? ''
+    RESPONSE_CODE = resp.ResponseCode ?? null
     core.info(`Command status: ${STATUS}`)
   }
+
+  // 255 stays the sentinel for the output so the contract does not change.
+  const EXIT_CODE = RESPONSE_CODE ?? 255
 
   // The command reached a terminal state, so the post step has nothing to cancel.
   // Set before the S3 fetches: a failure reading logs must not cancel a finished command.
@@ -110,10 +117,18 @@ INNER
   stderr && core.warning(stderr)
 
   core.setOutput('command-exit-code', EXIT_CODE);
+  core.setOutput('command-status', STATUS);
+  core.info(`Status: ${STATUS}${STATUS_DETAILS && STATUS_DETAILS !== STATUS ? ` (${STATUS_DETAILS})` : ''}`)
   core.info(`Exit code: ${EXIT_CODE}`)
 
-  if (String(EXIT_CODE) !== '0') {
-    core.setFailed(`Remote command failed with exit code: ${EXIT_CODE}`)
+  // Status is the authoritative field: a null ResponseCode reports as 255, which is
+  // indistinguishable from a script that genuinely exited 255.
+  if (STATUS !== 'Success') {
+    // Only quote an exit code the script actually produced, otherwise the sentinel
+    // reads as a real script failure and sends debugging down the wrong path.
+    const code = RESPONSE_CODE === null ? '' : ` (exit code ${RESPONSE_CODE})`
+    const detail = STATUS_DETAILS && STATUS_DETAILS !== STATUS ? `: ${STATUS_DETAILS}` : ''
+    core.setFailed(`Remote command ${STATUS}${code}${detail}`)
   }
 }
 

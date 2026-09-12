@@ -33,6 +33,8 @@ inputs:
 outputs:
   command-exit-code:
     description: Command exit code
+  command-status:
+    description: SSM invocation status, e.g. Success, Failed, TimedOut, Cancelled
 
 runs:
   using: node24

@@ -43,7 +43,10 @@ It is a Node.js action (`runs.using: node24`) bundled with `@vercel/ncc`.
 4. Polls `GetCommandInvocation` every `poll_interval_ms` until status leaves `Pending`/`InProgress`/`Delayed`, then
    saves `ssm-command-done` state so the post step knows the command is terminal.
 5. Fetches `stdout`/`stderr` objects from S3 and prints them in log groups.
-6. Sets the `command-exit-code` output; calls `core.setFailed` on non-zero exit.
+6. Sets the `command-exit-code` and `command-status` outputs; calls `core.setFailed` when `Status !== 'Success'`.
+   `ResponseCode` is null whenever the script never ran (Undeliverable / TimedOut / Terminated / Cancelled), so
+   `Status` — not the exit code — is the authoritative signal, and the 255 sentinel is kept out of the failure
+   message unless SSM actually returned a code.
 
 ## Conventions & gotchas
 

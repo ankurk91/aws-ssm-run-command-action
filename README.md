@@ -98,9 +98,15 @@ jobs:
 
 ### Outputs
 
-| Name                | Description              |
-|---------------------|--------------------------|
-| `command-exit-code` | Remote command exit code |
+| Name                | Description                                                              |
+|---------------------|--------------------------------------------------------------------------|
+| `command-exit-code` | Remote command exit code, or `255` when the script never ran (see below) |
+| `command-status`    | SSM invocation status, e.g. `Success`, `Failed`, `TimedOut`, `Cancelled` |
+
+The step fails whenever `command-status` is not `Success`. Prefer it over the exit code when
+branching on the outcome: SSM reports no exit code at all if the script never ran — an unreachable
+instance, a missing SSM agent, a timeout or a cancellation — and `command-exit-code` falls back to
+`255` in those cases, which is indistinguishable from a script that genuinely exited `255`.
 
 ### Credentials and Region
 
