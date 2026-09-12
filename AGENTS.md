@@ -42,7 +42,8 @@ It is a Node.js action (`runs.using: node24`) bundled with `@vercel/ncc`.
    `core.saveState` (consumed by `cancel.js`).
 4. Polls `GetCommandInvocation` every `poll_interval_ms` until status leaves `Pending`/`InProgress`/`Delayed`, then
    saves `ssm-command-done` state so the post step knows the command is terminal.
-5. Fetches `stdout`/`stderr` objects from S3 and prints them in log groups.
+5. Fetches `stdout`/`stderr` objects from S3 and prints them in log groups via `printUntrusted()`, fenced with
+   `::stop-commands::`.
 6. Sets the `command-exit-code` and `command-status` outputs; calls `core.setFailed` when `Status !== 'Success'`.
    `ResponseCode` is null whenever the script never ran (Undeliverable / TimedOut / Terminated / Cancelled), so
    `Status` — not the exit code — is the authoritative signal, and the 255 sentinel is kept out of the failure
@@ -53,6 +54,12 @@ It is a Node.js action (`runs.using: node24`) bundled with `@vercel/ncc`.
 - **ESM only** (`"type": "module"`). Use `import`, and prefer `node:`-prefixed builtins (e.g. `node:stream/consumers`).
 - **2-space indent, LF, final newline, trim trailing whitespace** — enforced by `.editorconfig`. JS uses 1TBS brace
   style and spaces around operators.
+- **Remote output is untrusted**: the runner parses this process's stdout for `::workflow-command::` directives, so
+  anything the EC2 host prints would be executed as one (`::add-mask::`, `::error::`, `::save-state::`, ...). All
+  remote text must go through `printUntrusted()`, which wraps it in a `::stop-commands::<uuid>` fence. Never pass
+  remote text straight to `core.info`/`core.warning`/`core.setFailed`. Workflow commands are inert *inside* the fence,
+  so groups and annotations have to be issued outside it — that is why the stderr annotation carries a fixed message
+  rather than the stderr body.
 - **Post step must stay fail-safe**: `cancel.js` runs on `always()` and decides what to do purely from saved state
   (`ssm-command-id` set, `ssm-command-done` unset means the command may still be running). If the main step dies before
   the poll loop ends — job timeout, runner shutdown, a thrown error — the flag is never written and the command is

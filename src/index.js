@@ -7,6 +7,7 @@ import {
 import {S3Client, GetObjectCommand} from '@aws-sdk/client-s3'
 import { text } from 'node:stream/consumers';
 import process  from 'node:process';
+import { randomUUID } from 'node:crypto';
 
 const ssm = new SSMClient()
 // LocalStack only resolves path-style S3 URLs; virtual-hosted-style requests
@@ -17,6 +18,27 @@ const s3 = new S3Client({
 })
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
+
+// The runner parses this process's stdout for `::workflow-command::` directives, so any
+// line the remote host prints would otherwise be executed as a runner directive
+// (`::add-mask::`, `::error::`, `::save-state::`, ...). `::stop-commands::<token>` makes
+// the runner treat everything up to the matching token as literal text. The token is a
+// fresh UUID per call so remote output cannot close the fence it is wrapped in.
+//
+// Our own workflow commands are inert inside the fence too, which is why the group and
+// any annotation are issued outside it and only the untrusted body goes within.
+function printUntrusted(title, body) {
+  const token = randomUUID()
+
+  core.startGroup(title)
+  core.info(`::stop-commands::${token}`)
+  try {
+    core.info(body)
+  } finally {
+    core.info(`::${token}::`)
+    core.endGroup()
+  }
+}
 
 async function streamToString(stream) {
   return await text(stream);
@@ -111,10 +133,15 @@ INNER
   const base = `${S3_PREFIX}/${COMMAND_ID}/${EC2_INSTANCE_ID}/awsrunShellScript/0.awsrunShellScript`
 
   const stdout = await fetchS3(LOG_BUCKET_NAME, `${base}/stdout`)
-  stdout ? core.info(stdout) : core.warning('No stdout found')
+  stdout ? printUntrusted('Remote stdout', stdout) : core.warning('No stdout found')
 
   const stderr = await fetchS3(LOG_BUCKET_NAME, `${base}/stderr`)
-  stderr && core.warning(stderr)
+  if (stderr) {
+    // The annotation has to stay outside the fence to be rendered as one, so it carries a
+    // fixed message and the remote text goes to the log group instead.
+    core.warning('Remote command wrote to stderr, see the "Remote stderr" log group')
+    printUntrusted('Remote stderr', stderr)
+  }
 
   core.setOutput('command-exit-code', EXIT_CODE);
   core.setOutput('command-status', STATUS);
