@@ -1,75 +1,35 @@
 # AGENTS.md
 
-Guidance for AI coding agents working in this repository.
-
-## What this is
-
-A GitHub Action that executes remote shell commands on an EC2 instance via AWS
-SSM Run Command (`AWS-RunShellScript`), streaming the command output to an S3
-bucket to avoid the ~24 KB step-log limit. Linux targets only. No SSH / port 22.
-
-It is a Node.js action (`runs.using: node24`) bundled with `@vercel/ncc`.
+Non-obvious notes only. Usage, inputs, outputs and IAM are in `README.md`; behaviour is in `src/`.
 
 ## Layout
 
-| Path                 | Purpose                                                                                                                                                                |
-|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `src/index.js`       | Main entrypoint. Sends the command, polls for completion, fetches logs from S3, sets the exit-code output.                                                             |
-| `src/cancel.js`      | Post step. Runs on every outcome (`post-if: always()`) and cancels the in-flight SSM command using the saved command ID, unless the main step recorded it as finished. |
-| `action.yaml`        | Action metadata: inputs, outputs, and the `main`/`post` bundle paths.                                                                                                  |
-| `dist/`              | **Generated** by `ncc`. Never edit by hand. `dist/main/` and `dist/cancel/`.                                                                                           |
-| `localstack.sh`      | Local/CI integration test driver against LocalStack.                                                                                                                   |
-| `docker-compose.yml` | LocalStack service for local testing.                                                                                                                                  |
-| `.env.example`       | Sample env vars (`INPUT_*`) for running `src/index.js` locally.                                                                                                        |
+| Path                                | What it is                                                 |
+|-------------------------------------|------------------------------------------------------------|
+| `src/index.js`                      | Main entrypoint (`runs.main`)                              |
+| `src/cancel.js`                     | Post step (`runs.post`), cancels the in-flight SSM command |
+| `action.yaml`                       | Action metadata: inputs, outputs, bundle paths             |
+| `dist/main/`, `dist/cancel/`        | ncc bundles — generated, never hand-edit                   |
+| `localstack.sh`                     | Integration test driver                                    |
+| `docker-compose.yml`                | LocalStack service for local testing                       |
+| `.env.example`                      | Sample `INPUT_*` vars for running `src/index.js` locally   |
+| `.github/workflows/localstack.yaml` | CI, on push/PR                                             |
+| `.github/workflows/ec2.yaml`        | Manual (`workflow_dispatch`) test against a real EC2       |
 
-## Build & test
+## Rules
 
-- Package manager is **pnpm** (see `packageManager` in `package.json`). Use `pnpm install --frozen-lockfile`.
-- Node version is pinned in `.nvmrc` and `engines` (Node >= 24.11).
-- **`npm run build`** — bundles both entrypoints via ncc into `dist/`. **Any change under `src/` requires a rebuild**,
-  because `action.yaml` runs the `dist/` bundle, not `src/`. Commit the regenerated `dist/`.
-- `npm start` — runs `src/index.js` locally with `--env-file=.env` (copy `.env.example` to `.env` first).
-- There is no unit-test suite (`npm test` is a placeholder). Integration testing is done via LocalStack:
-  - Locally: `docker compose up -d` then `bash ./localstack.sh`.
-  - CI: `.github/workflows/localstack.yaml` (runs on push/PR to main).
-  - `.github/workflows/ec2.yaml` is a manual (`workflow_dispatch`) test against a real EC2 instance.
+- `action.yaml` runs `dist/`, not `src/`. Rebuild with `pnpm run build` after any `src/` change,
+  and commit `dist/` as its own `build` commit.
+- Route remote output through `printUntrusted()` — never `core.info` / `core.warning` /
+  `core.setFailed`. Issue groups and annotations outside the fence, not inside it.
+- `cancel.js` warns, never `setFailed` — it runs on `always()`.
+- Branch on `Status`, not the exit code. `ResponseCode` is null for Undeliverable / TimedOut /
+  Terminated / Cancelled and collapses into the 255 sentinel.
+- `PluginName` is `aws:runShellScript` (colon), the S3 key path is `awsrunShellScript` (no colon).
+  Both are correct — don't "fix" either to match.
+- Keep the `README.md` tables in sync with `action.yaml`.
 
-## How the action works (key flow in `src/index.js`)
+## Notes
 
-1. Reads inputs via `@actions/core`. `run_as_user` is validated against `^[A-Za-z0-9_-]+$` before use.
-2. Builds a bash `SCRIPT` that runs the user `commands` as `run_as_user` inside a `sudo -u ... bash <<'INNER'` heredoc.
-3. `SendCommand` with `OutputS3BucketName`/`OutputS3KeyPrefix` so the agent writes logs to S3. Saves the command ID via
-   `core.saveState` (consumed by `cancel.js`).
-4. Polls `GetCommandInvocation` every `poll_interval_ms` until status leaves `Pending`/`InProgress`/`Delayed`, then
-   saves `ssm-command-done` state so the post step knows the command is terminal.
-5. Fetches `stdout`/`stderr` objects from S3 and prints them in log groups via `printUntrusted()`, fenced with
-   `::stop-commands::`.
-6. Sets the `command-exit-code` and `command-status` outputs; calls `core.setFailed` when `Status !== 'Success'`.
-   `ResponseCode` is null whenever the script never ran (Undeliverable / TimedOut / Terminated / Cancelled), so
-   `Status` — not the exit code — is the authoritative signal, and the 255 sentinel is kept out of the failure
-   message unless SSM actually returned a code.
-
-## Conventions & gotchas
-
-- **ESM only** (`"type": "module"`). Use `import`, and prefer `node:`-prefixed builtins (e.g. `node:stream/consumers`).
-- **2-space indent, LF, final newline, trim trailing whitespace** — enforced by `.editorconfig`. JS uses 1TBS brace
-  style and spaces around operators.
-- **Remote output is untrusted**: the runner parses this process's stdout for `::workflow-command::` directives, so
-  anything the EC2 host prints would be executed as one (`::add-mask::`, `::error::`, `::save-state::`, ...). All
-  remote text must go through `printUntrusted()`, which wraps it in a `::stop-commands::<uuid>` fence. Never pass
-  remote text straight to `core.info`/`core.warning`/`core.setFailed`. Workflow commands are inert *inside* the fence,
-  so groups and annotations have to be issued outside it — that is why the stderr annotation carries a fixed message
-  rather than the stderr body.
-- **Post step must stay fail-safe**: `cancel.js` runs on `always()` and decides what to do purely from saved state
-  (`ssm-command-id` set, `ssm-command-done` unset means the command may still be running). If the main step dies before
-  the poll loop ends — job timeout, runner shutdown, a thrown error — the flag is never written and the command is
-  cancelled. Errors there are logged with `core.warning`, never `setFailed`, so the post step cannot fail the job.
-- **SSM naming quirk**: the API `PluginName` is `aws:runShellScript` (with colon), but the S3 key path uses
-  `awsrunShellScript` (no colon). Both forms are correct — don't "fix" one to match the other.
-- AWS credentials/region come from the default SDK provider chain (set up via `aws-actions/configure-aws-credentials` in
-  CI). `AWS_ENDPOINT_URL` is used to point at LocalStack.
-- Keep `README.md` inputs/outputs tables and `action.yaml` in sync when changing inputs.
-
-## Do not
-
-- Edit anything in `dist/` directly — regenerate with `npm run build`.
+- Local run: copy `.env.example` to `.env`, then `npm start`. LocalStack: `docker compose up -d`
+  then `bash ./localstack.sh`.

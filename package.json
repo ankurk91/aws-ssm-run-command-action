@@ -12,7 +12,6 @@
   "description": "Execute remote commands on EC2 instance using SSM",
   "homepage": "https://github.com/ankurk91/aws-ssm-run-command-action",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node --env-file=.env ./src/index.js",
     "prebuild": "rm -rf ./dist",
     "build": "npm run build:main && npm run build:cancel",
