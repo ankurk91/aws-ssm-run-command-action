@@ -64784,7 +64784,7 @@ function isDebug() {
  * @param message debug message
  */
 function core_debug(message) {
-    issueCommand('debug', {}, message);
+    command_issueCommand('debug', {}, message);
 }
 /**
  * Adds an error issue
@@ -64911,16 +64911,26 @@ const ssm = new dist_cjs/* SSMClient */.jBj()
 async function run() {
   const COMMAND_ID = getState('ssm-command-id');
 
-  if (COMMAND_ID) {
-    const EC2_INSTANCE_ID = getInput('ec2_instance_id', {required: true})
-
-    await ssm.send(new dist_cjs/* CancelCommandCommand */.tal({
-        InstanceIds: [EC2_INSTANCE_ID],
-        CommandId: COMMAND_ID
-      }
-    ));
-    info(`Cancelled command: ${COMMAND_ID}`);
+  if (!COMMAND_ID) {
+    return
   }
+
+  // The post step runs on every outcome (`post-if: always()`) so that a job timeout,
+  // a runner shutdown or a failed step does not leave the remote script running until
+  // `execution_timeout`. Only skip when the main step saw the command reach a terminal state.
+  if (getState('ssm-command-done') === 'true') {
+    core_debug(`Command ${COMMAND_ID} already finished, nothing to cancel`)
+    return
+  }
+
+  const EC2_INSTANCE_ID = getInput('ec2_instance_id', {required: true})
+
+  await ssm.send(new dist_cjs/* CancelCommandCommand */.tal({
+      InstanceIds: [EC2_INSTANCE_ID],
+      CommandId: COMMAND_ID
+    }
+  ));
+  info(`Cancelled command: ${COMMAND_ID}`);
 }
 
 run().catch(error => {

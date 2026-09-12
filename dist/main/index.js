@@ -73509,13 +73509,13 @@ function info(message) {
  * @param name The name of the output group
  */
 function startGroup(name) {
-    issue('group', name);
+    command_issue('group', name);
 }
 /**
  * End an output group.
  */
 function endGroup() {
-    issue('endgroup');
+    command_issue('endgroup');
 }
 /**
  * Wrap an asynchronous function call in a group.
@@ -73594,7 +73594,10 @@ var client_s3_dist_cjs = __nccwpck_require__(2448);
 const consumers_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:stream/consumers");
 // EXTERNAL MODULE: external "node:process"
 var external_node_process_ = __nccwpck_require__(1708);
+// EXTERNAL MODULE: external "node:crypto"
+var external_node_crypto_ = __nccwpck_require__(7598);
 ;// CONCATENATED MODULE: ./src/index.js
+
 
 
 
@@ -73610,6 +73613,27 @@ const s3 = new client_s3_dist_cjs/* S3Client */.YxF({
 })
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
+
+// The runner parses this process's stdout for `::workflow-command::` directives, so any
+// line the remote host prints would otherwise be executed as a runner directive
+// (`::add-mask::`, `::error::`, `::save-state::`, ...). `::stop-commands::<token>` makes
+// the runner treat everything up to the matching token as literal text. The token is a
+// fresh UUID per call so remote output cannot close the fence it is wrapped in.
+//
+// Our own workflow commands are inert inside the fence too, which is why the group and
+// any annotation are issued outside it and only the untrusted body goes within.
+function printUntrusted(title, body) {
+  const token = (0,external_node_crypto_.randomUUID)()
+
+  startGroup(title)
+  info(`::stop-commands::${token}`)
+  try {
+    info(body)
+  } finally {
+    info(`::${token}::`)
+    endGroup()
+  }
+}
 
 async function streamToString(stream) {
   return await (0,consumers_namespaceObject.text)(stream);
@@ -73677,7 +73701,10 @@ INNER
   info('Waiting for command to finish...')
 
   let STATUS = 'Pending'
-  let EXIT_CODE = 255;
+  let STATUS_DETAILS = ''
+  // Null until the script itself runs to completion. Undeliverable, TimedOut, Terminated
+  // and Cancelled all leave it null, so it must not be flattened into a number too early.
+  let RESPONSE_CODE = null
   while (['Pending', 'InProgress', 'Delayed'].includes(STATUS)) {
     await sleep(POLL_INTERVAL_MS)
     const resp = await ssm.send(new dist_cjs/* GetCommandInvocationCommand */.ryN({
@@ -73686,23 +73713,44 @@ INNER
       PluginName: 'aws:runShellScript'
     }))
     STATUS = resp.Status ?? 'Unknown'
-    EXIT_CODE = resp.ResponseCode ?? 255
+    STATUS_DETAILS = resp.StatusDetails ?? ''
+    RESPONSE_CODE = resp.ResponseCode ?? null
     info(`Command status: ${STATUS}`)
   }
+
+  // 255 stays the sentinel for the output so the contract does not change.
+  const EXIT_CODE = RESPONSE_CODE ?? 255
+
+  // The command reached a terminal state, so the post step has nothing to cancel.
+  // Set before the S3 fetches: a failure reading logs must not cancel a finished command.
+  saveState('ssm-command-done', 'true')
 
   const base = `${S3_PREFIX}/${COMMAND_ID}/${EC2_INSTANCE_ID}/awsrunShellScript/0.awsrunShellScript`
 
   const stdout = await fetchS3(LOG_BUCKET_NAME, `${base}/stdout`)
-  stdout ? info(stdout) : warning('No stdout found')
+  stdout ? printUntrusted('Remote stdout', stdout) : warning('No stdout found')
 
   const stderr = await fetchS3(LOG_BUCKET_NAME, `${base}/stderr`)
-  stderr && warning(stderr)
+  if (stderr) {
+    // The annotation has to stay outside the fence to be rendered as one, so it carries a
+    // fixed message and the remote text goes to the log group instead.
+    warning('Remote command wrote to stderr, see the "Remote stderr" log group')
+    printUntrusted('Remote stderr', stderr)
+  }
 
   setOutput('command-exit-code', EXIT_CODE);
+  setOutput('command-status', STATUS);
+  info(`Status: ${STATUS}${STATUS_DETAILS && STATUS_DETAILS !== STATUS ? ` (${STATUS_DETAILS})` : ''}`)
   info(`Exit code: ${EXIT_CODE}`)
 
-  if (String(EXIT_CODE) !== '0') {
-    setFailed(`Remote command failed with exit code: ${EXIT_CODE}`)
+  // Status is the authoritative field: a null ResponseCode reports as 255, which is
+  // indistinguishable from a script that genuinely exited 255.
+  if (STATUS !== 'Success') {
+    // Only quote an exit code the script actually produced, otherwise the sentinel
+    // reads as a real script failure and sends debugging down the wrong path.
+    const code = RESPONSE_CODE === null ? '' : ` (exit code ${RESPONSE_CODE})`
+    const detail = STATUS_DETAILS && STATUS_DETAILS !== STATUS ? `: ${STATUS_DETAILS}` : ''
+    setFailed(`Remote command ${STATUS}${code}${detail}`)
   }
 }
 
