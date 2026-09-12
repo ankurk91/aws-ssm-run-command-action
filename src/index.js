@@ -97,6 +97,10 @@ INNER
     core.info(`Command status: ${STATUS}`)
   }
 
+  // The command reached a terminal state, so the post step has nothing to cancel.
+  // Set before the S3 fetches: a failure reading logs must not cancel a finished command.
+  core.saveState('ssm-command-done', 'true')
+
   const base = `${S3_PREFIX}/${COMMAND_ID}/${EC2_INSTANCE_ID}/awsrunShellScript/0.awsrunShellScript`
 
   const stdout = await fetchS3(LOG_BUCKET_NAME, `${base}/stdout`)

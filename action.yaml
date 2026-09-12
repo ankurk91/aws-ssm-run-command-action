@@ -37,5 +37,5 @@ outputs:
 runs:
   using: node24
   main: 'dist/main/index.js'
-  post-if: 'cancelled()'
+  post-if: 'always()'
   post: 'dist/cancel/index.js'

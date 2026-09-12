@@ -12,15 +12,15 @@ It is a Node.js action (`runs.using: node24`) bundled with `@vercel/ncc`.
 
 ## Layout
 
-| Path                 | Purpose                                                                                                                                  |
-|----------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `src/index.js`       | Main entrypoint. Sends the command, polls for completion, fetches logs from S3, sets the exit-code output.                               |
-| `src/cancel.js`      | Post step. Runs only on workflow cancellation (`post-if: cancelled()`) and cancels the in-flight SSM command using the saved command ID. |
-| `action.yaml`        | Action metadata: inputs, outputs, and the `main`/`post` bundle paths.                                                                    |
-| `dist/`              | **Generated** by `ncc`. Never edit by hand. `dist/main/` and `dist/cancel/`.                                                             |
-| `localstack.sh`      | Local/CI integration test driver against LocalStack.                                                                                     |
-| `docker-compose.yml` | LocalStack service for local testing.                                                                                                    |
-| `.env.example`       | Sample env vars (`INPUT_*`) for running `src/index.js` locally.                                                                          |
+| Path                 | Purpose                                                                                                                                                                |
+|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `src/index.js`       | Main entrypoint. Sends the command, polls for completion, fetches logs from S3, sets the exit-code output.                                                             |
+| `src/cancel.js`      | Post step. Runs on every outcome (`post-if: always()`) and cancels the in-flight SSM command using the saved command ID, unless the main step recorded it as finished. |
+| `action.yaml`        | Action metadata: inputs, outputs, and the `main`/`post` bundle paths.                                                                                                  |
+| `dist/`              | **Generated** by `ncc`. Never edit by hand. `dist/main/` and `dist/cancel/`.                                                                                           |
+| `localstack.sh`      | Local/CI integration test driver against LocalStack.                                                                                                                   |
+| `docker-compose.yml` | LocalStack service for local testing.                                                                                                                                  |
+| `.env.example`       | Sample env vars (`INPUT_*`) for running `src/index.js` locally.                                                                                                        |
 
 ## Build & test
 
@@ -40,7 +40,8 @@ It is a Node.js action (`runs.using: node24`) bundled with `@vercel/ncc`.
 2. Builds a bash `SCRIPT` that runs the user `commands` as `run_as_user` inside a `sudo -u ... bash <<'INNER'` heredoc.
 3. `SendCommand` with `OutputS3BucketName`/`OutputS3KeyPrefix` so the agent writes logs to S3. Saves the command ID via
    `core.saveState` (consumed by `cancel.js`).
-4. Polls `GetCommandInvocation` every `poll_interval_ms` until status leaves `Pending`/`InProgress`/`Delayed`.
+4. Polls `GetCommandInvocation` every `poll_interval_ms` until status leaves `Pending`/`InProgress`/`Delayed`, then
+   saves `ssm-command-done` state so the post step knows the command is terminal.
 5. Fetches `stdout`/`stderr` objects from S3 and prints them in log groups.
 6. Sets the `command-exit-code` output; calls `core.setFailed` on non-zero exit.
 
@@ -49,6 +50,10 @@ It is a Node.js action (`runs.using: node24`) bundled with `@vercel/ncc`.
 - **ESM only** (`"type": "module"`). Use `import`, and prefer `node:`-prefixed builtins (e.g. `node:stream/consumers`).
 - **2-space indent, LF, final newline, trim trailing whitespace** — enforced by `.editorconfig`. JS uses 1TBS brace
   style and spaces around operators.
+- **Post step must stay fail-safe**: `cancel.js` runs on `always()` and decides what to do purely from saved state
+  (`ssm-command-id` set, `ssm-command-done` unset means the command may still be running). If the main step dies before
+  the poll loop ends — job timeout, runner shutdown, a thrown error — the flag is never written and the command is
+  cancelled. Errors there are logged with `core.warning`, never `setFailed`, so the post step cannot fail the job.
 - **SSM naming quirk**: the API `PluginName` is `aws:runShellScript` (with colon), but the S3 key path uses
   `awsrunShellScript` (no colon). Both forms are correct — don't "fix" one to match the other.
 - AWS credentials/region come from the default SDK provider chain (set up via `aws-actions/configure-aws-credentials` in
