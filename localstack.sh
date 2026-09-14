@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Drives the action against LocalStack and asserts what LocalStack alone cannot: it has no SSM
-# agent, so it never executes a command. The script the action sends is therefore pulled back out
-# of LocalStack and run here, as a real second user, which is the only way to prove run_as_user
-# containment in CI.
+# Drives the action against LocalStack and asserts its output contract and the shape of the
+# script it sends. LocalStack has no SSM agent, so nothing here ever executes that script:
+# execution identity is covered by .github/workflows/ec2.yaml against a real instance.
 
 export AWS_PAGER=""
 export AWS_ACCESS_KEY_ID=test_id
@@ -13,6 +12,7 @@ export AWS_DEFAULT_REGION=ap-south-1
 export AWS_REGION=ap-south-1
 export AWS_ENDPOINT_URL=http://localhost:4566
 S3_BUCKET_NAME=ssm-deployment-logs
+
 RUN_AS_USER=ssmtest
 
 WORK_DIR=$(mktemp -d)
@@ -21,7 +21,6 @@ FAILURES=0
 
 pass() { printf '  \033[32mPASS\033[0m  %s\n' "$1"; }
 fail() { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; FAILURES=$((FAILURES + 1)); }
-skip() { printf '  \033[33mSKIP\033[0m  %s\n' "$1"; }
 
 # Runs the action, never aborting the suite on a non-zero exit: the failure paths are assertions
 # too. Leaves the exit status in ACTION_STATUS and the log in $WORK_DIR/action.log.
@@ -136,65 +135,6 @@ if diff -q "$WORK_DIR/expected" "$WORK_DIR/decoded" > /dev/null; then
 else
   fail "decoded payload differs from the commands"
   diff "$WORK_DIR/expected" "$WORK_DIR/decoded" | head -20
-fi
-
-echo
-echo "Execution as $RUN_AS_USER"
-# This is the only check that proves run_as_user containment, and the only one with a side
-# effect on the host: it adds a user and runs the payload here. Confined to CI, where the
-# runner is disposable.
-if [ "${CI:-}" != "true" ]; then
-  skip "not CI, skipping (this step would add a user and run the payload on this machine)"
-elif ! sudo -n true 2>/dev/null; then
-  skip "no passwordless sudo, cannot verify execution identity"
-else
-  id -u "$RUN_AS_USER" >/dev/null 2>&1 || sudo useradd -m "$RUN_AS_USER"
-
-  set +e
-  # Outer shell as root, the way the SSM agent runs it.
-  sudo bash "$WORK_DIR/sent.sh" > "$WORK_DIR/remote.log" 2>&1
-  REMOTE_STATUS=$?
-  set -e
-
-  if grep -q "identity-first: $RUN_AS_USER" "$WORK_DIR/remote.log" \
-    && grep -q "identity-last: $RUN_AS_USER" "$WORK_DIR/remote.log"; then
-    pass "commands run as $RUN_AS_USER"
-  else
-    fail "commands did not run as $RUN_AS_USER"
-    cat "$WORK_DIR/remote.log"
-  fi
-
-  # Anything that escaped sudo would run in the root outer shell and say so.
-  if grep -q 'identity.*: root' "$WORK_DIR/remote.log"; then
-    fail "a command escaped into the outer root shell"
-    cat "$WORK_DIR/remote.log"
-  else
-    pass "nothing escaped into the outer root shell"
-  fi
-
-  if grep -q 'nested-heredoc-body' "$WORK_DIR/remote.log"; then
-    pass "nested heredoc survived"
-  else
-    fail "nested heredoc was mangled"
-  fi
-
-  if grep -q 'to-stderr' "$WORK_DIR/remote.log"; then
-    pass "stderr is merged into stdout"
-  else
-    fail "stderr was lost"
-  fi
-
-  if [ "$REMOTE_STATUS" -eq 7 ]; then
-    pass "exit code propagates through sudo"
-  else
-    fail "expected exit 7 from the remote script, got $REMOTE_STATUS"
-  fi
-
-  if compgen -G "/tmp/ssm-*.sh" > /dev/null; then
-    fail "the script file was left behind on the host"
-  else
-    pass "the script file is cleaned up"
-  fi
 fi
 
 echo
