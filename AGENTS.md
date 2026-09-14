@@ -22,6 +22,10 @@ Non-obvious notes only. Usage, inputs, outputs and IAM are in `README.md`; behav
   and commit `dist/` as its own `build` commit.
 - Route remote output through `printUntrusted()` — never `core.info` / `core.warning` /
   `core.setFailed`. Issue groups and annotations outside the fence, not inside it.
+- `commands` is executable code by design. It reaches the remote shell base64-encoded, never
+  interpolated — a delimiter matched by a line in the payload would escape `sudo -u` into the
+  outer (root) SSM shell. The encoded payload is heredoc-safe only because `-` is absent from
+  the base64 alphabet. Never interpolate untrusted event values (PR titles, branch names).
 - `cancel.js` warns, never `setFailed` — it runs on `always()`.
 - Branch on `Status`, not the exit code. `ResponseCode` is null for Undeliverable / TimedOut /
   Terminated / Cancelled and collapses into the 255 sentinel.
