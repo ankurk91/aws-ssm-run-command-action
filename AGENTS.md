@@ -12,7 +12,6 @@ Non-obvious notes only. Usage, inputs, outputs and IAM are in `README.md`; behav
 | `dist/main/`, `dist/cancel/`        | ncc bundles — generated, never hand-edit                   |
 | `localstack.sh`                     | Integration test driver                                    |
 | `docker-compose.yml`                | LocalStack service for local testing                       |
-| `.env.example`                      | Sample `INPUT_*` vars for running `src/index.js` locally   |
 | `.github/workflows/localstack.yaml` | CI, on push/PR                                             |
 | `.github/workflows/ec2.yaml`        | Manual (`workflow_dispatch`) test against a real EC2       |
 
@@ -35,5 +34,5 @@ Non-obvious notes only. Usage, inputs, outputs and IAM are in `README.md`; behav
 
 ## Notes
 
-- Local run: copy `.env.example` to `.env`, then `npm start`. LocalStack: `docker compose up -d`
-  then `bash ./localstack.sh`.
+- Local run: `docker compose up -d`, then `bash ./localstack.sh`. `npm start` runs `src/index.js`
+  against a hand-written `.env` of `INPUT_*` vars.

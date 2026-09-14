@@ -38,14 +38,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
-        with:
-          persist-credentials: false
 
       - name: Setup pnpm and node.js
         uses: pnpm/setup@v2
         with:
           runtime: node@24
           cache: true
+
+      - name: Build
+        run: pnpm run build
 
       - name: Test the action
         run: bash ./localstack.sh

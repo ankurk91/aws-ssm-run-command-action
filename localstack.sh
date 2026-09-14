@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Starting..."
+# Drives the action against LocalStack and asserts what LocalStack alone cannot: it has no SSM
+# agent, so it never executes a command. The script the action sends is therefore pulled back out
+# of LocalStack and run here, as a real second user, which is the only way to prove run_as_user
+# containment in CI.
 
 export AWS_PAGER=""
 export AWS_ACCESS_KEY_ID=test_id
@@ -10,14 +13,32 @@ export AWS_DEFAULT_REGION=ap-south-1
 export AWS_REGION=ap-south-1
 export AWS_ENDPOINT_URL=http://localhost:4566
 S3_BUCKET_NAME=ssm-deployment-logs
+RUN_AS_USER=ssmtest
+
+WORK_DIR=$(mktemp -d)
+trap 'rm -rf "$WORK_DIR"' EXIT
+FAILURES=0
+
+pass() { printf '  \033[32mPASS\033[0m  %s\n' "$1"; }
+fail() { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; FAILURES=$((FAILURES + 1)); }
+skip() { printf '  \033[33mSKIP\033[0m  %s\n' "$1"; }
+
+# Runs the action, never aborting the suite on a non-zero exit: the failure paths are assertions
+# too. Leaves the exit status in ACTION_STATUS and the log in $WORK_DIR/action.log.
+run_action() {
+  export GITHUB_OUTPUT="$WORK_DIR/outputs"
+  : > "$GITHUB_OUTPUT"
+  set +e
+  env "$@" node ./src/index.js > "$WORK_DIR/action.log" 2>&1
+  ACTION_STATUS=$?
+  set -e
+}
 
 echo "Ensuring S3 bucket..."
-aws s3api head-bucket \
-  --bucket "$S3_BUCKET_NAME" 2>/dev/null \
-|| aws s3 mb "s3://$S3_BUCKET_NAME" --output text
+aws s3api head-bucket --bucket "$S3_BUCKET_NAME" 2>/dev/null \
+  || aws s3 mb "s3://$S3_BUCKET_NAME" --output text
 
 echo "Creating EC2..."
-
 INSTANCE_ID=$(
   aws ec2 run-instances \
     --image-id ami-12345678 \
@@ -27,14 +48,168 @@ INSTANCE_ID=$(
 )
 echo "EC2 ID: $INSTANCE_ID"
 
-echo "Preparing env....."
-
-export INPUT_EC2_INSTANCE_ID=$INSTANCE_ID
-export INPUT_RUN_AS_USER="ubuntu"
-export INPUT_COMMANDS="pwd"
+export INPUT_EC2_INSTANCE_ID="$INSTANCE_ID"
 export INPUT_LOG_BUCKET_NAME="$S3_BUCKET_NAME"
+export INPUT_RUN_AS_USER="$RUN_AS_USER"
+export INPUT_POLL_INTERVAL_MS=200
 
-echo "Executing the action..."
-node ./src/index.js
+# Built to break out: standalone lines matching the old and the current delimiter, a nested
+# heredoc, quoting that must survive verbatim, and a non-zero exit to propagate. `id -un` is
+# evaluated on the remote side, so every line reports which shell actually ran it.
+read -r -d '' COMMANDS <<'PAYLOAD_EOF' || true
+echo "identity-first: $(id -un)"
+INNER
+END-OF-SSM-PAYLOAD
+cat <<'INNER'
+nested-heredoc-body
+INNER
+echo "quoting: 'single' \"double\" `hostname` \backslash plaintext-marker"
+echo "to-stderr" >&2
+echo "identity-last: $(id -un)"
+exit 7
+PAYLOAD_EOF
+export INPUT_COMMANDS="$COMMANDS"
 
-echo "Finish testing with localstack!"
+echo
+echo "Running the action..."
+run_action
+
+echo
+echo "Action contract"
+if [ "$ACTION_STATUS" -eq 0 ]; then
+  pass "action exits 0 against LocalStack"
+else
+  fail "action exited $ACTION_STATUS"
+  cat "$WORK_DIR/action.log"
+fi
+
+if grep -q 'command-status' "$GITHUB_OUTPUT" && grep -qx 'Success' "$GITHUB_OUTPUT"; then
+  pass "command-status output is Success"
+else
+  fail "command-status output missing or wrong"
+fi
+
+if grep -q 'command-exit-code' "$GITHUB_OUTPUT" && grep -qx '0' "$GITHUB_OUTPUT"; then
+  pass "command-exit-code output is 0"
+else
+  fail "command-exit-code output missing or wrong"
+fi
+
+echo
+echo "Script sent to SSM"
+COMMAND_ID=$(sed -n 's/^Command ID: //p' "$WORK_DIR/action.log" | head -1)
+aws ssm list-commands --command-id "$COMMAND_ID" \
+  --query 'Commands[0].Parameters.commands[0]' --output text > "$WORK_DIR/sent.sh"
+
+if [ -s "$WORK_DIR/sent.sh" ]; then
+  pass "script retrieved from LocalStack ($COMMAND_ID)"
+else
+  fail "could not retrieve the sent script"
+fi
+
+if grep -q 'plaintext-marker' "$WORK_DIR/sent.sh"; then
+  fail "raw command text was interpolated into the script"
+else
+  pass "commands appear only as an encoded payload"
+fi
+
+# The heredoc opener and its terminator, and nothing else: a payload line cannot add a third.
+if [ "$(grep -c 'END-OF-SSM-PAYLOAD' "$WORK_DIR/sent.sh")" -eq 2 ]; then
+  pass "delimiter appears exactly twice"
+else
+  fail "delimiter appears $(grep -c 'END-OF-SSM-PAYLOAD' "$WORK_DIR/sent.sh") times, payload can close it"
+fi
+
+sed -n "/<<'END-OF-SSM-PAYLOAD'/,/^END-OF-SSM-PAYLOAD$/p" "$WORK_DIR/sent.sh" \
+  | sed '1d;$d' > "$WORK_DIR/payload.b64"
+
+if [ -z "$(tr -d 'A-Za-z0-9+/=\n' < "$WORK_DIR/payload.b64")" ]; then
+  pass "payload stays inside the base64 alphabet"
+else
+  fail "payload contains characters outside the base64 alphabet"
+fi
+
+printf 'exec 2>&1\n%s\n' "$COMMANDS" > "$WORK_DIR/expected"
+base64 -d < "$WORK_DIR/payload.b64" > "$WORK_DIR/decoded"
+if diff -q "$WORK_DIR/expected" "$WORK_DIR/decoded" > /dev/null; then
+  pass "payload decodes to the commands verbatim, with stderr merged"
+else
+  fail "decoded payload differs from the commands"
+  diff "$WORK_DIR/expected" "$WORK_DIR/decoded" | head -20
+fi
+
+echo
+echo "Execution as $RUN_AS_USER"
+# This is the only check that proves run_as_user containment, and the only one with a side
+# effect on the host: it adds a user and runs the payload here. Confined to CI, where the
+# runner is disposable.
+if [ "${CI:-}" != "true" ]; then
+  skip "not CI, skipping (this step would add a user and run the payload on this machine)"
+elif ! sudo -n true 2>/dev/null; then
+  skip "no passwordless sudo, cannot verify execution identity"
+else
+  id -u "$RUN_AS_USER" >/dev/null 2>&1 || sudo useradd -m "$RUN_AS_USER"
+
+  set +e
+  # Outer shell as root, the way the SSM agent runs it.
+  sudo bash "$WORK_DIR/sent.sh" > "$WORK_DIR/remote.log" 2>&1
+  REMOTE_STATUS=$?
+  set -e
+
+  if grep -q "identity-first: $RUN_AS_USER" "$WORK_DIR/remote.log" \
+    && grep -q "identity-last: $RUN_AS_USER" "$WORK_DIR/remote.log"; then
+    pass "commands run as $RUN_AS_USER"
+  else
+    fail "commands did not run as $RUN_AS_USER"
+    cat "$WORK_DIR/remote.log"
+  fi
+
+  # Anything that escaped sudo would run in the root outer shell and say so.
+  if grep -q 'identity.*: root' "$WORK_DIR/remote.log"; then
+    fail "a command escaped into the outer root shell"
+    cat "$WORK_DIR/remote.log"
+  else
+    pass "nothing escaped into the outer root shell"
+  fi
+
+  if grep -q 'nested-heredoc-body' "$WORK_DIR/remote.log"; then
+    pass "nested heredoc survived"
+  else
+    fail "nested heredoc was mangled"
+  fi
+
+  if grep -q 'to-stderr' "$WORK_DIR/remote.log"; then
+    pass "stderr is merged into stdout"
+  else
+    fail "stderr was lost"
+  fi
+
+  if [ "$REMOTE_STATUS" -eq 7 ]; then
+    pass "exit code propagates through sudo"
+  else
+    fail "expected exit 7 from the remote script, got $REMOTE_STATUS"
+  fi
+
+  if compgen -G "/tmp/ssm-*.sh" > /dev/null; then
+    fail "the script file was left behind on the host"
+  else
+    pass "the script file is cleaned up"
+  fi
+fi
+
+echo
+echo "Input validation"
+run_action INPUT_RUN_AS_USER='deploy; rm -rf /'
+if [ "$ACTION_STATUS" -ne 0 ] && grep -q 'Invalid run_as_user' "$WORK_DIR/action.log"; then
+  pass "an invalid run_as_user is rejected"
+else
+  fail "an invalid run_as_user was accepted"
+fi
+
+echo
+if [ "$FAILURES" -eq 0 ]; then
+  echo "All checks passed."
+else
+  echo "$FAILURES check(s) failed."
+  exit 1
+fi
