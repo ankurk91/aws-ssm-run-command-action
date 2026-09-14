@@ -73594,9 +73594,12 @@ var client_s3_dist_cjs = __nccwpck_require__(2448);
 const consumers_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:stream/consumers");
 // EXTERNAL MODULE: external "node:process"
 var external_node_process_ = __nccwpck_require__(1708);
+// EXTERNAL MODULE: external "node:buffer"
+var external_node_buffer_ = __nccwpck_require__(4573);
 // EXTERNAL MODULE: external "node:crypto"
 var external_node_crypto_ = __nccwpck_require__(7598);
 ;// CONCATENATED MODULE: ./src/index.js
+
 
 
 
@@ -73657,6 +73660,33 @@ async function fetchS3(bucket, key) {
   }
 }
 
+// `commands` is encoded, not interpolated: the payload cannot close the heredoc and escape the
+// target user's shell into the outer (root) SSM shell. No pipe either, so `set -e` still catches
+// a `base64` failure instead of feeding the child an empty script and reporting a green deploy.
+function buildRemoteScript(runAsUser, commands) {
+  // `exec 2>&1` merges stderr into stdout so interleaved output keeps its chronological order.
+  const encoded = external_node_buffer_.Buffer
+    .from(`exec 2>&1\n${commands}\n`, 'utf8')
+    .toString('base64')
+    .replace(/.{76}/g, '$&\n')
+
+  // `-` is absent from the base64 alphabet, which is what makes the delimiter uncloseable.
+  if (!/^[A-Za-z0-9+/=\n]+$/.test(encoded)) {
+    throw new Error('Encoded payload left the base64 alphabet, the heredoc delimiter is no longer safe.')
+  }
+
+  // The temp file is 0600 root-owned and reaches the child as an inherited fd, so the script
+  // is never readable by other users, nor visible in `ps` the way `bash -c` would be.
+  return `set -e
+SSM_SCRIPT="$(mktemp "\${TMPDIR:-/tmp}/ssm-XXXXXXXX.sh" 2>/dev/null || mktemp)"
+trap 'rm -f "$SSM_SCRIPT"' EXIT
+base64 -d > "$SSM_SCRIPT" <<'END-OF-SSM-PAYLOAD'
+${encoded}
+END-OF-SSM-PAYLOAD
+sudo -u '${runAsUser}' bash -s < "$SSM_SCRIPT"
+`
+}
+
 async function run() {
   const EC2_INSTANCE_ID = getInput('ec2_instance_id', {required: true})
   const RUN_AS_USER = getInput('run_as_user', {required: true})
@@ -73672,15 +73702,8 @@ async function run() {
   const EXECUTION_TIMEOUT = getInput('execution_timeout') || '3600'
   const POLL_INTERVAL_MS = parseInt(getInput('poll_interval_ms'), 10) || 2000
 
-  // `exec 2>&1` merges stderr into stdout so interleaved output stays in
-  // chronological order; on separate streams the lines can arrive out of sequence.
-  const SCRIPT = `
-set -e
-sudo -u ${RUN_AS_USER} bash <<'INNER'
-exec 2>&1
-${COMMANDS}
-INNER
-`
+  const SCRIPT = buildRemoteScript(RUN_AS_USER, COMMANDS)
+
   info('Sending command to remote server...')
   const sendResp = await ssm.send(new dist_cjs/* SendCommandCommand */.VWR({
     InstanceIds: [EC2_INSTANCE_ID],
