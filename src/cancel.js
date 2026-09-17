@@ -14,7 +14,7 @@ async function run() {
   // a runner shutdown or a failed step does not leave the remote script running until
   // `execution_timeout`. Only skip when the main step saw the command reach a terminal state.
   if (core.getState('ssm-command-done') === 'true') {
-    core.debug(`Command ${COMMAND_ID} already finished, nothing to cancel`)
+    core.info(`Command ${COMMAND_ID} already finished, nothing to cancel`)
     return
   }
 
