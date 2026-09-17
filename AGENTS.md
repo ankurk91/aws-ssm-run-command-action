@@ -35,5 +35,5 @@ Non-obvious notes only. Usage, inputs, outputs and IAM are in `README.md`; behav
 
 ## Notes
 
-- Local run: `docker compose up -d`, then `bash ./moto.sh`. `npm start` runs `src/index.js`
-  against a handwritten `.env` of `INPUT_*` vars.
+- Local run: `docker compose up -d`, then `bash ./moto.sh`. It drives `src/` locally and
+  `dist/main/` under CI, where GitHub sets `CI=true`.

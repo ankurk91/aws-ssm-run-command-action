@@ -15,6 +15,14 @@ S3_BUCKET_NAME=ssm-deployment-logs
 
 RUN_AS_USER=ssmtest
 
+# CI exercises the bundle action.yaml actually ships; locally it is src, so a change can be
+# tested without rebuilding first. GitHub Actions sets CI=true.
+if [ "${CI:-}" = "true" ]; then
+  ENTRYPOINT=./dist/main/index.js
+else
+  ENTRYPOINT=./src/index.js
+fi
+
 WORK_DIR=$(mktemp -d)
 trap 'rm -rf "$WORK_DIR"' EXIT
 FAILURES=0
@@ -33,7 +41,7 @@ run_action() {
   export GITHUB_OUTPUT="$WORK_DIR/outputs"
   : > "$GITHUB_OUTPUT"
   set +e
-  env "$@" node ./src/index.js > "$WORK_DIR/action.log" 2>&1
+  env "$@" node "$ENTRYPOINT" > "$WORK_DIR/action.log" 2>&1
   ACTION_STATUS=$?
   set -e
 }
@@ -75,7 +83,7 @@ PAYLOAD_EOF
 export INPUT_COMMANDS="$COMMANDS"
 
 echo
-echo "Running the action..."
+echo "Running the action ($ENTRYPOINT)..."
 run_action
 
 echo
