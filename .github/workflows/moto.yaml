@@ -1,4 +1,4 @@
-name: localstack-test
+name: moto-test
 
 on:
   workflow_dispatch:
@@ -17,20 +17,18 @@ permissions:
 
 
 jobs:
-  localstack:
+  moto:
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     services:
-      localstack:
-        image: localstack/localstack:4.14
+      moto:
+        image: motoserver/moto:5.2.3
         ports:
-          - 4566:4566
-        env:
-          SERVICES: ec2,s3,ssm,iam,sts
-          DEBUG: 0
+          # moto serves on 5000; published as 4566 so AWS_ENDPOINT_URL stays what it always was.
+          - 4566:5000
         options: >-
-          --health-cmd="curl -f http://localhost:4566/_localstack/health || exit 1"
+          --health-cmd="curl -f http://localhost:5000/moto-api/ || exit 1"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
@@ -49,4 +47,4 @@ jobs:
         run: pnpm run build
 
       - name: Test the action
-        run: bash ./localstack.sh
+        run: bash ./moto.sh

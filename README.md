@@ -4,7 +4,7 @@
   <img src=".github/banner.jpg" alt="AWS SSM Run Command Action" width="100%">
 </p>
 
-[![localstack](https://github.com/ankurk91/aws-ssm-run-command-action/actions/workflows/localstack.yaml/badge.svg)](https://github.com/ankurk91/aws-ssm-run-command-action/actions)
+[![moto](https://github.com/ankurk91/aws-ssm-run-command-action/actions/workflows/moto.yaml/badge.svg)](https://github.com/ankurk91/aws-ssm-run-command-action/actions)
 
 A GitHub Action to execute remote shell commands on EC2 instances via SSM.
 

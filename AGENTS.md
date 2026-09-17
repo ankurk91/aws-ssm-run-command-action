@@ -10,9 +10,9 @@ Non-obvious notes only. Usage, inputs, outputs and IAM are in `README.md`; behav
 | `src/cancel.js`                     | Post step (`runs.post`), cancels the in-flight SSM command |
 | `action.yaml`                       | Action metadata: inputs, outputs, bundle paths             |
 | `dist/main/`, `dist/cancel/`        | ncc bundles — generated, never hand-edit                   |
-| `localstack.sh`                     | Integration test driver                                    |
-| `docker-compose.yml`                | LocalStack service for local testing                       |
-| `.github/workflows/localstack.yaml` | CI, on push/PR                                             |
+| `moto.sh`                           | Integration test driver                                    |
+| `docker-compose.yml`                | moto service for local testing                             |
+| `.github/workflows/moto.yaml`       | CI, on push/PR                                             |
 | `.github/workflows/ec2.yaml`        | Manual (`workflow_dispatch`) test against a real EC2       |
 
 ## Rules
@@ -34,5 +34,5 @@ Non-obvious notes only. Usage, inputs, outputs and IAM are in `README.md`; behav
 
 ## Notes
 
-- Local run: `docker compose up -d`, then `bash ./localstack.sh`. `npm start` runs `src/index.js`
-  against a hand-written `.env` of `INPUT_*` vars.
+- Local run: `docker compose up -d`, then `bash ./moto.sh`. `npm start` runs `src/index.js`
+  against a handwritten `.env` of `INPUT_*` vars.
