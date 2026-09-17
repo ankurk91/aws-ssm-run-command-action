@@ -73744,7 +73744,11 @@ async function run() {
   const base = `${S3_PREFIX}/${COMMAND_ID}/${EC2_INSTANCE_ID}/awsrunShellScript/0.awsrunShellScript`
 
   const stdout = await fetchS3(LOG_BUCKET_NAME, `${base}/stdout`)
-  stdout ? printUntrusted('Remote stdout', stdout) : warning('No stdout found')
+  if (stdout) {
+    printUntrusted('Remote stdout', stdout)
+  } else {
+    warning('No stdout found')
+  }
 
   const stderr = await fetchS3(LOG_BUCKET_NAME, `${base}/stderr`)
   if (stderr) {

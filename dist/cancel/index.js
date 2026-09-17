@@ -64784,7 +64784,7 @@ function isDebug() {
  * @param message debug message
  */
 function core_debug(message) {
-    command_issueCommand('debug', {}, message);
+    issueCommand('debug', {}, message);
 }
 /**
  * Adds an error issue
@@ -64919,7 +64919,7 @@ async function run() {
   // a runner shutdown or a failed step does not leave the remote script running until
   // `execution_timeout`. Only skip when the main step saw the command reach a terminal state.
   if (getState('ssm-command-done') === 'true') {
-    core_debug(`Command ${COMMAND_ID} already finished, nothing to cancel`)
+    info(`Command ${COMMAND_ID} already finished, nothing to cancel`)
     return
   }
 
