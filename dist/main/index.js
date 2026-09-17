@@ -73592,13 +73592,13 @@ var dist_cjs = __nccwpck_require__(2764);
 var client_s3_dist_cjs = __nccwpck_require__(2448);
 ;// CONCATENATED MODULE: external "node:stream/consumers"
 const consumers_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import.meta.url)("node:stream/consumers");
-// EXTERNAL MODULE: external "node:process"
-var external_node_process_ = __nccwpck_require__(1708);
 // EXTERNAL MODULE: external "node:buffer"
 var external_node_buffer_ = __nccwpck_require__(4573);
 // EXTERNAL MODULE: external "node:crypto"
 var external_node_crypto_ = __nccwpck_require__(7598);
-;// CONCATENATED MODULE: ./src/index.js
+// EXTERNAL MODULE: external "node:process"
+var external_node_process_ = __nccwpck_require__(1708);
+;// CONCATENATED MODULE: ./src/utils.js
 
 
 
@@ -73606,25 +73606,18 @@ var external_node_crypto_ = __nccwpck_require__(7598);
 
 
 
-
-const ssm = new dist_cjs/* SSMClient */.jBj()
-// LocalStack only resolves path-style S3 URLs; virtual-hosted-style requests
-// (bucket.localhost) fail with NoSuchBucket. Enable path-style only when a
-// custom endpoint is set so real AWS keeps using the default addressing.
+// Virtual-hosted-style requests (bucket.localhost) do not resolve against a local emulator, so
+// path-style is enabled only when a custom endpoint is set. Real AWS keeps default addressing.
 const s3 = new client_s3_dist_cjs/* S3Client */.YxF({
   forcePathStyle: Boolean(external_node_process_.env.AWS_ENDPOINT_URL)
 })
 
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
-// The runner parses this process's stdout for `::workflow-command::` directives, so any
-// line the remote host prints would otherwise be executed as a runner directive
-// (`::add-mask::`, `::error::`, `::save-state::`, ...). `::stop-commands::<token>` makes
-// the runner treat everything up to the matching token as literal text. The token is a
-// fresh UUID per call so remote output cannot close the fence it is wrapped in.
-//
-// Our own workflow commands are inert inside the fence too, which is why the group and
-// any annotation are issued outside it and only the untrusted body goes within.
+// The runner executes `::workflow-command::` lines it finds on stdout, so remote output has to be
+// fenced with `::stop-commands::<token>`. The token is a fresh UUID per call, otherwise the
+// output could close its own fence. Our own commands are inert inside the fence too, which is why
+// groups and annotations are issued outside it and only the untrusted body goes within.
 function printUntrusted(title, body) {
   const token = (0,external_node_crypto_.randomUUID)()
 
@@ -73638,17 +73631,13 @@ function printUntrusted(title, body) {
   }
 }
 
-async function streamToString(stream) {
-  return await (0,consumers_namespaceObject.text)(stream);
-}
-
 async function fetchS3(bucket, key) {
   try {
     const res = await s3.send(new client_s3_dist_cjs/* GetObjectCommand */.jLs({
       Bucket: bucket,
       Key: key
     }))
-    return await streamToString(res.Body)
+    return await (0,consumers_namespaceObject.text)(res.Body)
   } catch (error) {
     const statusCode = error?.$metadata?.httpStatusCode
     if (error?.name === 'AccessDenied' || statusCode === 403) {
@@ -73660,9 +73649,9 @@ async function fetchS3(bucket, key) {
   }
 }
 
-// `commands` is encoded, not interpolated: the payload cannot close the heredoc and escape the
-// target user's shell into the outer (root) SSM shell. No pipe either, so `set -e` still catches
-// a `base64` failure instead of feeding the child an empty script and reporting a green deploy.
+// `commands` is encoded, not interpolated: a payload line cannot close the heredoc and escape
+// `sudo -u` into the outer (root) SSM shell. No pipe either, so `set -e` still catches a `base64`
+// failure instead of feeding the child an empty script and reporting a green deploy.
 function buildRemoteScript(runAsUser, commands) {
   // `exec 2>&1` merges stderr into stdout so interleaved output keeps its chronological order.
   const encoded = external_node_buffer_.Buffer
@@ -73675,8 +73664,8 @@ function buildRemoteScript(runAsUser, commands) {
     throw new Error('Encoded payload left the base64 alphabet, the heredoc delimiter is no longer safe.')
   }
 
-  // The temp file is 0600 root-owned and reaches the child as an inherited fd, so the script
-  // is never readable by other users, nor visible in `ps` the way `bash -c` would be.
+  // The temp file is 0600 root-owned and reaches the child as an inherited fd, so it is never
+  // readable by other users, nor visible in `ps` the way `bash -c` would be.
   return `set -e
 SSM_SCRIPT="$(mktemp "\${TMPDIR:-/tmp}/ssm-XXXXXXXX.sh" 2>/dev/null || mktemp)"
 trap 'rm -f "$SSM_SCRIPT"' EXIT
@@ -73686,6 +73675,13 @@ END-OF-SSM-PAYLOAD
 sudo -u '${runAsUser}' bash -s < "$SSM_SCRIPT"
 `
 }
+
+;// CONCATENATED MODULE: ./src/index.js
+
+
+
+
+const ssm = new dist_cjs/* SSMClient */.jBj()
 
 async function run() {
   const EC2_INSTANCE_ID = getInput('ec2_instance_id', {required: true})
@@ -73707,7 +73703,7 @@ async function run() {
   info('Sending command to remote server...')
   const sendResp = await ssm.send(new dist_cjs/* SendCommandCommand */.VWR({
     InstanceIds: [EC2_INSTANCE_ID],
-    TimeoutSeconds: 300, // SSM will wait up to these seconds for the agent to pick up the command
+    TimeoutSeconds: 300, // how long SSM waits for the agent to pick the command up
     Comment: COMMENT,
     DocumentName: 'AWS-RunShellScript',
     Parameters: {
@@ -73725,8 +73721,7 @@ async function run() {
 
   let STATUS = 'Pending'
   let STATUS_DETAILS = ''
-  // Null until the script itself runs to completion. Undeliverable, TimedOut, Terminated
-  // and Cancelled all leave it null, so it must not be flattened into a number too early.
+  // Null until the script runs to completion, so it must not be flattened into a number early.
   let RESPONSE_CODE = null
   while (['Pending', 'InProgress', 'Delayed'].includes(STATUS)) {
     await sleep(POLL_INTERVAL_MS)
@@ -73741,10 +73736,8 @@ async function run() {
     info(`Command status: ${STATUS}`)
   }
 
-  // 255 stays the sentinel for the output so the contract does not change.
   const EXIT_CODE = RESPONSE_CODE ?? 255
 
-  // The command reached a terminal state, so the post step has nothing to cancel.
   // Set before the S3 fetches: a failure reading logs must not cancel a finished command.
   saveState('ssm-command-done', 'true')
 
@@ -73755,8 +73748,8 @@ async function run() {
 
   const stderr = await fetchS3(LOG_BUCKET_NAME, `${base}/stderr`)
   if (stderr) {
-    // The annotation has to stay outside the fence to be rendered as one, so it carries a
-    // fixed message and the remote text goes to the log group instead.
+    // An annotation only renders outside the fence, so it carries a fixed message and the
+    // remote text goes to the log group instead.
     warning('Remote command wrote to stderr, see the "Remote stderr" log group')
     printUntrusted('Remote stderr', stderr)
   }
@@ -73766,11 +73759,9 @@ async function run() {
   info(`Status: ${STATUS}${STATUS_DETAILS && STATUS_DETAILS !== STATUS ? ` (${STATUS_DETAILS})` : ''}`)
   info(`Exit code: ${EXIT_CODE}`)
 
-  // Status is the authoritative field: a null ResponseCode reports as 255, which is
-  // indistinguishable from a script that genuinely exited 255.
+  // Status is authoritative: a null ResponseCode reports as the 255 sentinel, which is
+  // indistinguishable from a script that genuinely exited 255 — so only quote a real one.
   if (STATUS !== 'Success') {
-    // Only quote an exit code the script actually produced, otherwise the sentinel
-    // reads as a real script failure and sends debugging down the wrong path.
     const code = RESPONSE_CODE === null ? '' : ` (exit code ${RESPONSE_CODE})`
     const detail = STATUS_DETAILS && STATUS_DETAILS !== STATUS ? `: ${STATUS_DETAILS}` : ''
     setFailed(`Remote command ${STATUS}${code}${detail}`)
