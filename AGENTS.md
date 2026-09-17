@@ -8,6 +8,7 @@ Non-obvious notes only. Usage, inputs, outputs and IAM are in `README.md`; behav
 |-------------------------------------|------------------------------------------------------------|
 | `src/index.js`                      | Main entrypoint (`runs.main`)                              |
 | `src/cancel.js`                     | Post step (`runs.post`), cancels the in-flight SSM command |
+| `src/utils.js`                      | Shared helpers: remote script, S3 read, fenced output       |
 | `action.yaml`                       | Action metadata: inputs, outputs, bundle paths             |
 | `dist/main/`, `dist/cancel/`        | ncc bundles — generated, never hand-edit                   |
 | `moto.sh`                           | Integration test driver                                    |
