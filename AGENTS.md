@@ -15,11 +15,13 @@ Non-obvious notes only. Usage, inputs, outputs and IAM are in `README.md`; behav
 | `docker-compose.yml`                | moto service for local testing                             |
 | `.github/workflows/moto.yaml`       | CI, on push/PR                                             |
 | `.github/workflows/ec2.yaml`        | Manual (`workflow_dispatch`) test against a real EC2       |
+| `.github/dependabot.yml`            | Weekly grouped updates for actions and npm, with cooldown  |
 
 ## Rules
 
 - `action.yaml` runs `dist/`, not `src/`. Rebuild with `pnpm run build` after any `src/` change,
-  and commit `dist/` as its own `build` commit.
+  and commit `dist/` as its own `build` commit. The same applies to Dependabot npm PRs: they bump
+  the lockfile but not the bundle, so rebuild before merging.
 - Route remote output through `printUntrusted()` — never `core.info` / `core.warning` /
   `core.setFailed`. Issue groups and annotations outside the fence, not inside it.
 - `commands` is executable code by design. It reaches the remote shell base64-encoded, never
