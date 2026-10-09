@@ -15,7 +15,8 @@
     "prebuild": "rm -rf ./dist",
     "build": "npm run build:main && npm run build:cancel",
     "build:main": "ncc build ./src/index.js -o dist/main",
-    "build:cancel": "ncc build ./src/cancel.js -o dist/cancel"
+    "build:cancel": "ncc build ./src/cancel.js -o dist/cancel",
+    "lint": "oxlint"
   },
   "dependencies": {
     "@actions/core": "^3.0.1",
@@ -23,7 +24,8 @@
     "@aws-sdk/client-ssm": "^3.1144.0"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.45.0"
+    "@vercel/ncc": "^0.45.0",
+    "oxlint": "^1.87.0"
   },
   "engineStrict": true,
   "packageManager": "pnpm@12.6.0",

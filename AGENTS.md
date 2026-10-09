@@ -1,21 +1,22 @@
 # AGENTS.md
 
-Non-obvious notes only. Usage, inputs, outputs and IAM are in `README.md`; behaviour is in `src/`.
+Non-obvious notes only. Usage, inputs, outputs and IAM are in `README.md`; behavior is in `src/`.
 
 ## Layout
 
-| Path                                | What it is                                                 |
-|-------------------------------------|------------------------------------------------------------|
-| `src/index.js`                      | Main entrypoint (`runs.main`)                              |
-| `src/cancel.js`                     | Post step (`runs.post`), cancels the in-flight SSM command |
-| `src/utils.js`                      | Shared helpers: remote script, S3 read, fenced output       |
-| `action.yaml`                       | Action metadata: inputs, outputs, bundle paths             |
-| `dist/main/`, `dist/cancel/`        | ncc bundles — generated, never hand-edit                   |
-| `moto.sh`                           | Integration test driver                                    |
-| `docker-compose.yml`                | moto service for local testing                             |
-| `.github/workflows/moto.yaml`       | CI, on push/PR                                             |
-| `.github/workflows/ec2.yaml`        | Manual (`workflow_dispatch`) test against a real EC2       |
-| `.github/dependabot.yml`            | Weekly grouped updates for actions and npm, with cooldown  |
+| Path                          | What it is                                                 |
+|-------------------------------|------------------------------------------------------------|
+| `src/index.js`                | Main entrypoint (`runs.main`)                              |
+| `src/cancel.js`               | Post step (`runs.post`), cancels the in-flight SSM command |
+| `src/utils.js`                | Shared helpers: remote script, S3 read, fenced output      |
+| `action.yaml`                 | Action metadata: inputs, outputs, bundle paths             |
+| `dist/main/`, `dist/cancel/`  | ncc bundles — generated, never hand-edit                   |
+| `moto.sh`                     | Integration test driver                                    |
+| `.oxlintrc.json`              | oxlint config: `correctness` category, `pnpm run lint`     |
+| `docker-compose.yml`          | moto service for local testing                             |
+| `.github/workflows/moto.yaml` | CI, on push/PR                                             |
+| `.github/workflows/ec2.yaml`  | Manual (`workflow_dispatch`) test against a real EC2       |
+| `.github/dependabot.yml`      | Grouped updates on the 15th of each month, with cooldown   |
 
 ## Rules
 
